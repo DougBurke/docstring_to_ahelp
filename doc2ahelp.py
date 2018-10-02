@@ -50,8 +50,8 @@ def process_symbol(name):
         print("  - has no doc")
         return None
 
-    rst_doc = parse_restructured(name, str(sherpa_doc))
-    return convert_docutils(name, rst_doc)
+    rst_doc = parse_restructured(sherpa_doc)
+    return convert_docutils(rst_doc)
 
 
 def save_doc(outdir, name, xmldoc):
@@ -78,6 +78,7 @@ def convert(ahelpdir, outdir):
     # Restrict the symbols that get processed
     #
     for name in ui.__all__:
+
         print("# {}".format(name))
 
         if name.startswith('_'):

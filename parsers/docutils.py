@@ -558,13 +558,16 @@ def make_para_block(para):
     return converter(para), single
 
 
-def find_syntax(name, indoc):
+def find_syntax(name, sig, indoc):
     """Return the syntax line, if present, and the remaining document.
 
     Parameters
     ----------
     name : str
         The name of the symbol being processed.
+    sig : inspect.Signature or None
+        The Python signature of this symbol, if available. It is
+        used when there is no syntax line.
     indoc : list of nodes
         The document.
 
@@ -575,16 +578,29 @@ def find_syntax(name, indoc):
 
     """
 
+    # Use the syntax from the document in preference to the
+    # signature line.
+    #
+    # To do:
+    # Improve the conversion of the signature to text, in particular
+    # for classes.
+    #
+    if sig is not None:
+        argline = make_syntax_block(["{}{}".format(name, sig)])
+    else:
+        argline = None
+
     node = indoc[0]
     if not is_para(node):
-        return None, indoc
+        return argline, indoc
 
     txt = node.astext().strip()
     if not txt.startswith('{}('.format(name)):
-        return None, indoc
+        return argline, indoc
 
     assert txt.endswith(')'), txt
 
+    print("  - using SYNTAX block from file")
     out = make_syntax_block([txt])
     return out, indoc[1:]
 
@@ -979,17 +995,15 @@ def find_examples(indoc):
     return out, rnodes
 
 
-def convert_docutils(name, indoc):
+def convert_docutils(indoc):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
     ----------
-    name : str
-        The name of the symbol being documented.
-    indoc
-        The docutils structure (output of sherpa.rst.parse_restructured).
-        It is expected that the document/@source attribute has
-        the same value as name but this is not required.
+    indoc : dict
+        The keys are 'name', 'document', and 'signature'.
+        The document field contains the docutils structure
+        and signature is None or an inspect.Signature object.
 
     Returns
     -------
@@ -998,12 +1012,14 @@ def convert_docutils(name, indoc):
 
     """
 
+    name = indoc['name']
+
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
     # confused.
     #
-    nodes = list(indoc)
-    syntax, nodes = find_syntax(name, nodes)
+    nodes = list(indoc['document'])
+    syntax, nodes = find_syntax(name, indoc['signature'], nodes)
     synopsis, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
 

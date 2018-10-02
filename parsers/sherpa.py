@@ -14,7 +14,7 @@ To do
 
 """
 
-from inspect import cleandoc
+from inspect import cleandoc, signature
 
 from sherpa.astro import ui
 
@@ -35,9 +35,10 @@ def sherpa_to_restructured(name):
 
     Returns
     -------
-    txt : str or None
-        The docstring after passing through napoleon (to convert
-        to "basic" reStructuredText).
+    result : dict or None
+        The keys of the dict are 'name', 'docstring', and 'signature',
+        the latter of which is either an inspect.Signature object
+        or None.
 
     """
 
@@ -47,4 +48,13 @@ def sherpa_to_restructured(name):
         return None
 
     cdoc = cleandoc(doc)
-    return NumpyDocstring(cdoc)
+    out = {'name': name,
+           'docstring': NumpyDocstring(cdoc),
+           'signature': None}
+
+    try:
+        out['signature'] = signature(sym)
+    except (TypeError, ValueError):
+        pass
+
+    return out
