@@ -935,16 +935,46 @@ def find_examples(indoc):
 
     out = ElementTree.Element("QEXAMPLELIST")
 
-    example = ElementTree.SubElement(out, 'QEXAMPLE')
-    desc = ElementTree.SubElement(example, 'DESC')
-
-    # TODO: split into examples
+    # Split the example section up into examples. Use several heuristics.
+    #
+    # Expect an example to be optional text blocks then code. However,
+    # if we have code block, text block where text starts with lower case,
+    # code block then this is all part of the same example. An example
+    # of this last case is 'ignore2d'.
+    #
+    # Note: I could make a code-only examples use the SYNTAX block
+    #       but for now do not bother with this
+    #
+    desc = None
     for para in lnodes:
+
+        # some repeated checks here and in make_para_block
+        #
+        name = para.tagname
+        assert name in ['paragraph', 'doctest_block',
+                        'block_quote', 'literal_block'], para
+
         p, f = make_para_block(para)
-        if f:
-            desc.append(p)
-        else:
-            desc.extend(p)
+        assert f
+
+        if desc is None:
+            if name == 'paragraph' and len(out) > 1 and \
+               para.astext()[0].islower():
+                qex = out[-1]
+                assert qex.tag == 'QEXAMPLE'
+                desc = qex[-1]
+                assert desc.tag == 'DESC'
+
+            else:
+                example = ElementTree.SubElement(out, 'QEXAMPLE')
+                desc = ElementTree.SubElement(example, 'DESC')
+
+        desc.append(p)
+
+        # Do we start a new example?
+        #
+        if name != 'paragraph':
+            desc = None
 
     return out, rnodes
 
