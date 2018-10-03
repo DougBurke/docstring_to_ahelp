@@ -19,10 +19,20 @@ from inspect import cleandoc, signature
 from sherpa.ui.utils import ModelWrapper
 from sherpa.astro import ui
 
+from sphinx.ext.napoleon import Config
 from sphinx.ext.napoleon.docstring import NumpyDocstring
 
 
 __all__ = ("sherpa_to_restructured", )
+
+
+# Any special configuration for the parsing?
+#
+# This uses ivar rather than attribute when parsing
+# attributes - and I can not easily work out how to process
+# the latter.
+#
+config = Config(napoleon_use_ivar=True)
 
 
 def sherpa_to_restructured(name):
@@ -55,8 +65,25 @@ def sherpa_to_restructured(name):
         return None
 
     cdoc = cleandoc(doc)
+
+    # HACK
+    if name == 'set_xsabund':
+        sterm = 'The pre-defined abundance tables are:'
+        idx = cdoc.find(sterm)
+        if idx == -1:
+            raise ValueError("Unable to find {} in set_xsabund".format(sterm))
+
+        idx += len(sterm)
+        ldoc = cdoc[:idx]
+        rdoc = cdoc[idx:]
+        assert rdoc[0:2] == "\n ", rdoc[0:10]
+
+        # add in an extra new-line character
+        #
+        cdoc = ldoc + "\n" + rdoc
+
     out = {'name': name,
-           'docstring': NumpyDocstring(cdoc),
+           'docstring': NumpyDocstring(cdoc, config),
            'signature': None}
 
     try:

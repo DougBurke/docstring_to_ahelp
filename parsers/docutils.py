@@ -105,33 +105,62 @@ def astext(node):
     on the input data.
     """
 
+    if node.tagname == 'system_message':
+        sys.stderr.write(" - skipping message: {}\n".format(node))
+        return ''
+
     if node.tagname == '#text':
         return node.astext()
 
+    if node.tagname == 'reference':
+        return node.astext()
+
+    # assume that the footnote contains a single item of
+    # text
     if node.tagname == 'footnote':
         assert node[0].tagname == 'label', node
-        assert node[1].tagname == 'paragraph', node
+        ctr = "[{}]".format(node[0].astext())
 
-        # this drops any links
-        return "[{}] {}".format(node[0].astext(), node[1].astext())
+        # handle different variants; should these use astext()?
+        #
+        if node[1].tagname == 'paragraph':
+            # this drops any links
+            cts = astext(node[1])
+        elif node[1].tagname == 'enumerated_list':
+            # not sure if going to want to handle differently
+            # to above.
+            cts = astext(node[1])
+        else:
+            raise ValueError("Unexpected node {} in {}".format(node[1].tagname, node))
 
-    # This check below isn't really sufficient, as need to
-    # recurse into elements, such as paragraph nodes. The
-    # traverse method did this, at the expense of needing
-    # to pass around the context.
+        return "{} {}".format(ctr, cts)
+
+    if node.tagname == 'footnote_reference':
+        return "[{}]".format(node.astext())
+
+    if node.tagname == 'title_reference':
+        return "`{}`".format(node.astext())
+
+    if node.tagname == 'literal':
+        # what should be done here?
+        return node.astext()
+
+    if node.tagname == 'emphasis':
+        # what should be done here?
+        return node.astext()
+
+    assert node.tagname in ['paragraph', 'list_item',
+                            'enumerated_list'], node
+
+    # Recurse into this "container".
     #
     out = []
     for tag in node:
-        txt = tag.astext()
-        if tag.tagname == 'footnote_reference':
-            txt = "[{}]".format(txt)
+        # print("DBG: [{}] tag={}".format(node.tagname, tag.tagname))
+        out.append(astext(tag))
 
-        elif tag.tagname != '#text':
-            print("  - unprocessed {}".format(tag.tagname))
-
-        out.append(txt)
-
-    return " ".join(out)
+    out = " ".join(out)
+    return out
 
 
 def make_syntax_block(lines):
@@ -187,38 +216,9 @@ def convert_para(para):
         print("  - paragraph handling {}".format(para.tagname))
 
     for n in para:
+        text.append(astext(n))
         name = n.tagname
-        # ntxt = n.astext()
         ntxt = astext(n)
-
-        if name == '#text':
-            text.append(ntxt)
-            continue
-
-        if name == 'footnote_reference':
-            text.append("[{}]".format(ntxt))
-            continue
-
-        elif name == 'title_reference':
-            text.append("`{}`".format(ntxt))
-            continue
-
-        elif name == 'literal':
-            # For now leave literals alone
-            text.append(ntxt)
-            continue
-
-        elif name == 'paragraph':
-            text.append(ntxt)
-            continue
-
-        print("-- debug found [{}] with [{}]\n{}".format(name, ntxt, para))
-
-        text.append(ntxt)
-        if name not in reported:
-            sys.stderr.write(" - found {} element [{}]\n".format(name,
-                                                                 n.astext()))
-            reported.add(name)
 
     out = ElementTree.Element("PARA")
     out.text = "\n".join(text)
@@ -331,6 +331,14 @@ def convert_block_quote(para):
         out.text = "\n\n".join(ls)  # note double new line
         return out
 
+    # Do we need to worry about multi-paragraph blocks?
+    #
+    if para[0].tagname == 'paragraph':
+        assert len(para) == 1, (len(para), para)
+        out = ElementTree.Element('VERBATIM')
+        out.text = astext(para[0])
+        return out
+
     raise ValueError("Unexpected block_quote element in:\n{}".format(para))
 
 
@@ -427,6 +435,22 @@ def convert_definition_list(para):
     return out
 
 
+"""
+
+<definition_list_item>
+  <term>The pre-defined abundance tables are:</term>
+  <definition>
+    <bullet_list bullet="-">
+      <list_item>
+        <paragraph>'angr', from <footnote_reference ids="id2" refname="2">2</footnote_reference></paragraph>
+      </list_item>
+      <list_item>
+        <paragraph>'aspl', from <footnote_reference ids="id3" refname="3">3</footnote_reference></paragraph></list_item><list_item><paragraph>'feld', from <footnote_reference ids="id4" refname="4">4</footnote_reference>, except for elements not listed which
+are given 'grsa' abundances</paragraph></list_item><list_item><paragraph>'aneb', from <footnote_reference ids="id5" refname="5">5</footnote_reference></paragraph></list_item><list_item><paragraph>'grsa', from <footnote_reference ids="id6" refname="6">6</footnote_reference></paragraph></list_item><list_item><paragraph>'wilm', from <footnote_reference ids="id7" refname="7">7</footnote_reference>, except for elements not listed which
+are given zero abundance</paragraph></list_item><list_item><paragraph>'lodd', from <footnote_reference ids="id8" refname="8">8</footnote_reference></paragraph></list_item></bullet_list></definition></definition_list_item>
+
+"""
+
 def add_table_row(out, el):
     """Given a table row, add it to the table.
 
@@ -504,12 +528,25 @@ def convert_note(note):
 
     assert note.tagname == 'note', tbl
 
-    # only one paragraph
-    assert len(note) == 1
-    assert note[0].tagname == 'paragraph'
+    # Assume:
+    #  1 paragraph - text
+    #  2 paragrahs - first is title, second is text
+    #
+    # could be mode though
+    assert all([n.tagname == 'paragraph' for n in note]), note
 
-    out = convert_para(note[0])
-    out.set('title', 'Note')
+    # could handle this, but would need to return [Element]
+    #
+    assert len(note) < 3, (len(note), note)
+
+    if len(note) == 1:
+        title = 'Note'
+        out = convert_para(note[0])
+    else:
+        title = astext(note[0])
+        out = convert_para(note[1])
+
+    out.set('title', title)
     return out
 
 
@@ -526,8 +563,8 @@ para_converters = {'doctest_block': convert_doctest_block,
 para_mconverters = ['definition_list']
 
 
-def make_para_block(para):
-    """Create a PARA block.
+def make_para_blocks(para):
+    """Create one or more PARA blocks.
 
     Parameters
     ----------
@@ -536,9 +573,8 @@ def make_para_block(para):
 
     Returns
     -------
-    el, flag : ElementTree.Element or list of ElementTree.Element, bool
-        The PARA block. The flag is True if the return value is a single
-        element (i.e. not a list of elements).
+    el, flag : list of ElementTree.Element
+        The PARA block(s), which can be empty.
 
     Notes
     -----
@@ -554,6 +590,11 @@ def make_para_block(para):
 
     """
 
+    if para.tagname == 'system_message':
+        print(" - skipping message: {}".format(para.astext()))
+        return []
+
+    # TODO: convert all the "conversion" routines to return a list
     single = True
 
     if is_para(para):
@@ -567,7 +608,11 @@ def make_para_block(para):
 
         single = para.tagname not in para_mconverters
 
-    return converter(para), single
+    out = converter(para)
+    if single:
+        out = [out]
+
+    return out
 
 
 def find_syntax(name, sig, indoc):
@@ -668,7 +713,7 @@ def find_desc(indoc):
     """
 
     def want(x):
-        return x.tagname not in ['rubric', 'field_list', 'container']
+        return x.tagname not in ['rubric', 'field_list', 'container', 'seealso']
 
     pnodes, rnodes = splitWhile(want, indoc)
     if len(pnodes) == 0:
@@ -676,12 +721,10 @@ def find_desc(indoc):
 
     out = ElementTree.Element('DESC')
     for para in pnodes:
-        p, f = make_para_block(para)
-        if f:
-            out.append(p)
-        else:
-            out.extend(p)
+        for b in make_para_blocks(para):
+            out.append(b)
 
+    assert len(out) > 0
     return out, rnodes
 
 
@@ -689,7 +732,9 @@ def find_fieldlist(indoc):
     """Return the parameter info, if present, and the remaining document.
 
     It is not clear how object attributes are converted - i.e. do they
-    also map to a field_list block?
+    also map to a field_list block? I have switched the default
+    Napoleon configuration so that theyt use ivar blocks for the
+    model attributes.
 
     Parameters
     ----------
@@ -711,6 +756,8 @@ def find_fieldlist(indoc):
       field_name = 'type name'
       field_name = 'returns'
       field_name = 'raises'
+
+      field_name = 'ivar'
 
     The parsing of the raises block may depend on how the :exc: role
     is parsed - at present it creates a "literal" object which means
@@ -769,7 +816,7 @@ def find_fieldlist(indoc):
 
         # TODO: handle multi-parameter values better
         toks = name.split(' ', 1)
-        assert toks[0] in ['param', 'type'], name
+        assert toks[0] in ['param', 'ivar', 'type'], name
 
         # assume always done in param/type order
         if toks[0] == 'param':
@@ -779,10 +826,21 @@ def find_fieldlist(indoc):
             store = {'type': 'parameter',
                      'name': toks[1]}
 
-        else:
+        elif toks[0] == 'ivar':
+            if store is not None:
+                out.append(store)
+
+            store = {'type': 'attribute',
+                     'name': toks[1]}
+
+        elif toks[0] == 'type':
+
             assert store is not None
             assert store['name'] == toks[1], (store, name)
             store['description'] = body
+
+        else:
+            raise ValueError("name={} toks[0]={}".format(name, toks[0]))
 
     if store is not None:
         out.append(store)
@@ -818,7 +876,7 @@ def find_seealso(indoc):
     node = indoc[0]
 
     # TODO: should this use isinstance instead?
-    if node.tagname != 'container':
+    if node.tagname != 'seealso':
         return None, indoc
 
     if node[0].tagname == 'definition_list':
@@ -877,12 +935,10 @@ def find_notes(indoc):
 
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
     for para in lnodes:
-        p, f = make_para_block(para)
-        if f:
-            out.append(p)
-        else:
-            out.extend(p)
+        for b in make_para_blocks(para):
+            out.append(b)
 
+    assert len(out) > 0
     return out, rnodes
 
 
@@ -976,14 +1032,11 @@ def find_examples(indoc):
     desc = None
     for para in lnodes:
 
-        # some repeated checks here and in make_para_block
+        # some repeated checks here and in make_para_blocks
         #
         name = para.tagname
         assert name in ['paragraph', 'doctest_block',
                         'block_quote', 'literal_block'], para
-
-        p, f = make_para_block(para)
-        assert f
 
         if desc is None:
             if name == 'paragraph' and len(out) > 1 and \
@@ -997,7 +1050,8 @@ def find_examples(indoc):
                 example = ElementTree.SubElement(out, 'QEXAMPLE')
                 desc = ElementTree.SubElement(example, 'DESC')
 
-        desc.append(p)
+        for p in make_para_blocks(para):
+            desc.append(p)
 
         # Do we start a new example?
         #

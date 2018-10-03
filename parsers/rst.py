@@ -20,28 +20,61 @@ from docutils.parsers import rst
 from docutils.utils import new_document
 from docutils import nodes
 
+from docutils.parsers.rst.directives.admonitions import BaseAdmonition
+
+from sphinx import addnodes
+
+
+'''
+# Try and hack in support for the Sphinx-provided roles and directives
+#
+from sphinx.registry import SphinxComponentRegistry
+
+import sphinx.roles
+import sphinx.directives
+import sphinx.directives.code
+import sphinx.directives.other
+import sphinx.directives.patches
+import sphinx.domains.python
+
+sphinx.directives.code.setup(app)
+sphinx.directives.other.setup(app)
+sphinx.directives.patches.setup(app)
+sphinx.directives.setup(app)
+
+sphinx.roles.setup(app)
+
+sphinx.domains.python.setup(app)
+
+class App(object):
+    """Trying to hack in app support, but I can't see how
+    this will help (i.e. although it calls "the correct" thing,
+    the whole structure isn't in place to get it to actually
+    work).
+    """
+
+    def __init__(self):
+        self.registry = SphinxComponentRegistry()
+
+    def add_domain(self, domain):
+        self.registry.add_domain(domain)
+
+
+app = App()
+
+'''
+
 __all__ = ("parse_restructured", )
 
 
-class SeeAlso(rst.Directive):
-    """Handle ..seealso sections.
 
-    Can we just ignore it for now?
+# Based on sphinx/directives/other.py
+#
+class SeeAlso(BaseAdmonition):
     """
-
-    required_arguments = 0
-    optional_arguments = 0
-    final_argument_whitespace = True
-    option_spec = {}
-    has_content = True
-
-    def run(self):
-
-        self.assert_has_content()
-        seealso_node = nodes.container(rawsource=self.block_text)
-        self.state.nested_parse(self.content, self.content_offset,
-                                seealso_node)
-        return [seealso_node]
+    An admonition mentioning things to look at as reference.
+    """
+    node_class = addnodes.seealso
 
 
 # The use of register_generic_role didn't seem to work, so
@@ -69,6 +102,10 @@ def exc_role(role, rawtext, text, lineno, inliner,
 #
 rst.directives.register_directive('seealso', SeeAlso)
 
+# rst.directives.register_directive('attribute', SeeAlso)
+
+# can not seem to find these in Sphinx
+#
 rst.roles.register_local_role('obj', obj_role)
 rst.roles.register_local_role('exc', exc_role)
 
