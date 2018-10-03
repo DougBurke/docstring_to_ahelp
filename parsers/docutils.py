@@ -105,6 +105,9 @@ def astext(node):
     on the input data.
     """
 
+    if node.tagname == '#text':
+        return node.astext()
+
     if node.tagname == 'footnote':
         assert node[0].tagname == 'label', node
         assert node[1].tagname == 'paragraph', node
@@ -159,8 +162,9 @@ def convert_para(para):
 
     Parameters
     ----------
-    para : docutils.paragraph
-        The contents to add.
+    para : docutils.node
+        The contents to add. It is expected to be paragraph but
+        can be other specialized cases
 
     Returns
     -------
@@ -179,9 +183,13 @@ def convert_para(para):
     text = []
     reported = set([])
 
+    if para.tagname != "paragraph":
+        print("  - paragraph handling {}".format(para.tagname))
+
     for n in para:
         name = n.tagname
-        ntxt = n.astext()
+        # ntxt = n.astext()
+        ntxt = astext(n)
 
         if name == '#text':
             text.append(ntxt)
@@ -200,7 +208,11 @@ def convert_para(para):
             text.append(ntxt)
             continue
 
-        print("-- debug found [{}] with [{}]".format(name, ntxt))
+        elif name == 'paragraph':
+            text.append(ntxt)
+            continue
+
+        print("-- debug found [{}] with [{}]\n{}".format(name, ntxt, para))
 
         text.append(ntxt)
         if name not in reported:
