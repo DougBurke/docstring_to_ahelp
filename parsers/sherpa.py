@@ -16,6 +16,7 @@ To do
 
 from inspect import cleandoc, signature
 
+from sherpa.ui.utils import ModelWrapper
 from sherpa.astro import ui
 
 from sphinx.ext.napoleon.docstring import NumpyDocstring
@@ -43,7 +44,13 @@ def sherpa_to_restructured(name):
     """
 
     sym = getattr(ui, name)
-    doc = sym.__doc__
+
+    if isinstance(sym, ModelWrapper):
+        print(" trying [{}] as model".format(name))
+        doc = str(sym)
+    else:
+        doc = sym.__doc__
+
     if doc is None:
         return None
 
