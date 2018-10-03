@@ -3,7 +3,8 @@
 """
 Usage:
 
-  ./doc2ahelp.py ahelpdir outdir
+  ./doc2ahelp.py ahelpdir outdir [names]
+     --debug
 
 Aim:
 
@@ -32,6 +33,10 @@ TODO:
   - indicate new/missing files
   - create composite pages like 'ahelp models' 'ahelp xs'
 
+  - parameter for set_xsxsect are not being picked up correctly
+    (but we don't see that in the output yet)
+  - how to handle the known problem cases?
+
 """
 
 import os
@@ -43,15 +48,24 @@ from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 
 
-def process_symbol(name):
+def process_symbol(name, debug=False):
 
     sherpa_doc = sherpa_to_restructured(name)
     if sherpa_doc is None:
         print("  - has no doc")
         return None
 
+    if debug:
+        print("---- formats")
+        print("-- Sherpa:\n{}".format(sherpa_doc['docstring']))
+
+
     rst_doc = parse_restructured(sherpa_doc)
-    return convert_docutils(rst_doc)
+    if debug:
+        print("-- RestructuredText:\n{}".format(rst_doc['document']))
+
+    doc = convert_docutils(rst_doc)
+    return doc
 
 
 def save_doc(outdir, name, xmldoc):
@@ -69,11 +83,15 @@ def save_doc(outdir, name, xmldoc):
     return outfile
 
 
-def convert(ahelpdir, outdir, restrict=None):
+def convert(ahelpdir, outdir, debug=False, restrict=None):
     """Convert the symbols.
 
     Parameters
     ----------
+    debug : optional, boool
+        If True then print out parsed versions of the symbols
+        (expected to be used when restrict is not None but this
+        is not enforced).
     restrict : optional, None or list of str
         The set of symbols to use (if not all).
     """
@@ -84,6 +102,7 @@ def convert(ahelpdir, outdir, restrict=None):
 
     # Restrict the symbols that get processed
     #
+    names = sorted(list(ui.__all__))
     for name in ui.__all__:
 
         if restrict is not None and name not in restrict:
@@ -95,12 +114,16 @@ def convert(ahelpdir, outdir, restrict=None):
             print(" - skipping as leading underscore")
             continue
 
+        if name in ['create_arf']:
+            print("  - known problem case")
+            continue
+
         sym = getattr(ui, name)
         if type(sym) == type(object):
             print(" - skipping {} as object".format(name))
             continue
 
-        xml = process_symbol(name)
+        xml = process_symbol(name, debug=debug)
         if xml is None:
             continue
 
@@ -164,9 +187,14 @@ if __name__ == "__main__":
     parser.add_argument("names", nargs='?', default=None,
                         help="Restrict to these names (stack syntax)")
 
+    parser.add_argument("--debug", action="store_true",
+                        help="Print out parsed output")
+
     args = parser.parse_args(sys.argv[1:])
     restrict = args.names
     if restrict is not None:
         restrict = stk.build(restrict)
 
-    convert(args.ahelpdir, args.outdir, restrict=restrict)
+    convert(args.ahelpdir, args.outdir,
+            debug=args.debug,
+            restrict=restrict)
