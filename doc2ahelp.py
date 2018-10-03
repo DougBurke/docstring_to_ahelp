@@ -69,7 +69,14 @@ def save_doc(outdir, name, xmldoc):
     return outfile
 
 
-def convert(ahelpdir, outdir):
+def convert(ahelpdir, outdir, restrict=None):
+    """Convert the symbols.
+
+    Parameters
+    ----------
+    restrict : optional, None or list of str
+        The set of symbols to use (if not all).
+    """
 
     if not os.path.isdir(outdir):
         sys.stderr.write("ERROR: outdir={} does not exist\n".format(outdir))
@@ -78,6 +85,9 @@ def convert(ahelpdir, outdir):
     # Restrict the symbols that get processed
     #
     for name in ui.__all__:
+
+        if restrict is not None and name not in restrict:
+            continue
 
         print("# {}".format(name))
 
@@ -141,6 +151,8 @@ if __name__ == "__main__":
     import argparse
     import sys
 
+    import stk
+
     parser = argparse.ArgumentParser(description=help_str,
                                      prog=sys.argv[0])
 
@@ -149,6 +161,12 @@ if __name__ == "__main__":
     parser.add_argument("outdir",
                         help="Files are written to this directory (created if missing)")
 
-    args = parser.parse_args(sys.argv[1:])
+    parser.add_argument("names", nargs='?', default=None,
+                        help="Restrict to these names (stack syntax)")
 
-    convert(args.ahelpdir, args.outdir)
+    args = parser.parse_args(sys.argv[1:])
+    restrict = args.names
+    if restrict is not None:
+        restrict = stk.build(restrict)
+
+    convert(args.ahelpdir, args.outdir, restrict=restrict)
