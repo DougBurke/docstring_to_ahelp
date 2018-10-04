@@ -14,6 +14,7 @@ To do
 
 """
 
+from importlib import import_module
 from inspect import cleandoc, isclass, signature
 
 from sherpa.ui.utils import ModelWrapper
@@ -43,7 +44,7 @@ __all__ = ("sym_to_rst", "sym_to_sig", "doc_to_rst", "unwanted")
 config = Config(napoleon_use_ivar=True)
 
 
-def sym_to_rst(name, sym):
+def sym_to_docstring(name, sym):
     """Return the docstring for the symbol.
 
     This is needed to work around some subtleties in how models
@@ -88,7 +89,34 @@ def sym_to_rst(name, sym):
         #
         cdoc = ldoc + "\n" + rdoc
 
-    return doc_to_rst(cdoc)
+    return cdoc
+
+
+def sym_to_rst(name, sym):
+    """Return the docstring for the symbol.
+
+    This is needed to work around some subtleties in how models
+    are wrapped. It also applies known "corrections" to the docstring.
+
+    Parameters
+    ----------
+    name : str
+        The name of the symbol
+    sym
+        The Sherpa symbol.
+
+    Returns
+    -------
+    result : str or None
+        The docstring (after removal of excess indentation).
+
+    """
+
+    doc = sym_to_docstring(name, sym)
+    if doc is None:
+        return None
+
+    return doc_to_rst(doc)
 
 
 def sym_to_sig(name, sym):
@@ -193,3 +221,46 @@ def unwanted(name, sym):
         return True
 
     return False
+
+
+def syms_from_module(modulename):
+    """Create docstrings from the symbols in modulename.
+
+    Parameters
+    ----------
+    modulename : str
+        The module to load - e.g. 'sherpa.astro.ui'.
+
+    Returns
+    -------
+    out : dict
+        The keys are 'name', 'file', and 'docstrings'. The name
+        and file are the "dunder" versions of the module, and
+        docstrings is a list of dicts. Each of these dicts has
+        keys of 'name', 'symbol', 'signature', and 'docstring'.
+
+    """
+
+    module = import_module(modulename)
+    out = {'name': module.__name__,
+           'file': module.__file__,
+           'docstrings': []}
+
+    # Ideally module.__all__ would be a unique list, but this is
+    # not true at the time of writing for sherpa.astro.ui, which
+    # contains 'erf' twice.
+    #
+    for name in sorted(set(module.__all__)):
+
+        sym = getattr(module, name)
+        if unwanted(name, sym):
+            continue
+
+        store = {'name': name,
+                 'symbol': sym,
+                 'signature': sym_to_sig(name, sym),
+                 'docstring': sym_to_docstring(name, sym)}
+
+        out['docstrings'].append(store)
+
+    return out
