@@ -47,6 +47,8 @@ from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 
+from helpers import save_doc
+
 
 def process_symbol(name, sym, debug=False):
 
@@ -67,21 +69,6 @@ def process_symbol(name, sym, debug=False):
 
     doc = convert_docutils(name, rst_doc, sig)
     return doc
-
-
-def save_doc(outdir, name, xmldoc):
-    """Write the ahelp XML to a file."""
-
-    outfile = os.path.join(outdir, '{}.xml'.format(name))
-
-    # See https://stackoverflow.com/a/43922805
-    #
-    with open(outfile, 'wb') as f:
-        f.write('<?xml version="1.0" encoding="UTF-8" ?>'.encode('utf8'))
-        f.write('<!DOCTYPE cxchelptopics SYSTEM "CXCHelp.dtd">'.encode('utf8'))
-        xmldoc.write(f, 'utf-8')
-
-    return outfile
 
 
 def convert(ahelpdir, outdir, debug=False, restrict=None):
@@ -120,7 +107,8 @@ def convert(ahelpdir, outdir, debug=False, restrict=None):
         if xml is None:
             continue
 
-        outfile = save_doc(outdir, name, xml)
+        outfile = os.path.join(outdir, '{}.xml'.format(name))
+        save_doc(outfile, xml)
         print("Created: {}".format(outfile))
 
     """

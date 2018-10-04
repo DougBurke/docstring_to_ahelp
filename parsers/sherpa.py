@@ -127,7 +127,8 @@ def sym_to_sig(name, sym):
     name : str
         The name of the symbol
     sym
-        The Sherpa symbol.
+        The Sherpa symbol. This can be None, in which case we
+        grab it ourselves (currently only sherpa.astro.ui cases).
 
     Returns
     -------
@@ -139,6 +140,9 @@ def sym_to_sig(name, sym):
     At present there is no "clever" processing of the
     signature.
     """
+
+    if sym is None:
+        sym = getattr(ui, name)
 
     if isinstance(sym, ModelWrapper):
         # TODO: do we want to say "powlaw1d.name" or "powlaw1d"?
@@ -162,10 +166,8 @@ def doc_to_rst(doc):
 
     Returns
     -------
-    result : ?
-        The keys of the dict are 'name', 'docstring', and 'signature',
-        the latter of which is either an inspect.Signature object
-        or None.
+    result : docstring
+        The parsed docstring.
 
     """
 
