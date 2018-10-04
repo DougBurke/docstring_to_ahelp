@@ -14,16 +14,24 @@ To do
 
 """
 
-from inspect import cleandoc, signature
+from inspect import cleandoc, isclass, signature
 
 from sherpa.ui.utils import ModelWrapper
+from sherpa.astro.instrument import ARFModel, RMFModel, RSPModel, \
+    PileupRMFModel
+from sherpa.instrument import ConvolutionModel, PSFModel
+from sherpa.data import BaseData
+from sherpa.models.basic import TableModel, UserModel
+from sherpa.models.template import TemplateModel, \
+    InterpolatingTemplateModel
+
 from sherpa.astro import ui
 
 from sphinx.ext.napoleon import Config
 from sphinx.ext.napoleon.docstring import NumpyDocstring
 
 
-__all__ = ("sherpa_to_restructured", )
+__all__ = ("sym_to_rst", "sym_to_sig", "doc_to_rst", "unwanted")
 
 
 # Any special configuration for the parsing?
@@ -35,28 +43,27 @@ __all__ = ("sherpa_to_restructured", )
 config = Config(napoleon_use_ivar=True)
 
 
-def sherpa_to_restructured(name):
-    """Given the name of a Sherpa symbol, return reStructuredText.
+def sym_to_rst(name, sym):
+    """Return the docstring for the symbol.
+
+    This is needed to work around some subtleties in how models
+    are wrapped. It also applies known "corrections" to the docstring.
 
     Parameters
     ----------
     name : str
-        The name of a function in sherpa.astro.ui. Limited checking
-        is done to make sure it is sensible.
+        The name of the symbol
+    sym
+        The Sherpa symbol.
 
     Returns
     -------
-    result : dict or None
-        The keys of the dict are 'name', 'docstring', and 'signature',
-        the latter of which is either an inspect.Signature object
-        or None.
+    result : str or None
+        The docstring (after removal of excess indentation).
 
     """
 
-    sym = getattr(ui, name)
-
     if isinstance(sym, ModelWrapper):
-        print(" trying [{}] as model".format(name))
         doc = str(sym)
     else:
         doc = sym.__doc__
@@ -66,7 +73,6 @@ def sherpa_to_restructured(name):
 
     cdoc = cleandoc(doc)
 
-    # HACK
     if name == 'set_xsabund':
         sterm = 'The pre-defined abundance tables are:'
         idx = cdoc.find(sterm)
@@ -82,13 +88,108 @@ def sherpa_to_restructured(name):
         #
         cdoc = ldoc + "\n" + rdoc
 
-    out = {'name': name,
-           'docstring': NumpyDocstring(cdoc, config),
-           'signature': None}
+    return doc_to_rst(cdoc)
 
-    try:
-        out['signature'] = signature(sym)
-    except (TypeError, ValueError):
-        pass
 
-    return out
+def sym_to_sig(name, sym):
+    """Return the 'signature' for the symbol.
+
+    Parameters
+    ----------
+    name : str
+        The name of the symbol
+    sym
+        The Sherpa symbol.
+
+    Returns
+    -------
+    result : str or None
+        The signature.
+
+    Notes
+    -----
+    At present there is no "clever" processing of the
+    signature.
+    """
+
+    if isinstance(sym, ModelWrapper):
+        # TODO: do we want to say "powlaw1d.name" or "powlaw1d"?
+        sig = name.lower()
+    else:
+        sig = signature(sym)
+        if sig is not None:
+            sig = "{}{}".format(name, sig)
+
+    return sig
+
+
+def doc_to_rst(doc):
+    """Return the RestructuredText version.
+
+    Parameters
+    ----------
+    doc : str
+        The docstring (after cleaning so that the excess indention
+        has been removed).
+
+    Returns
+    -------
+    result : ?
+        The keys of the dict are 'name', 'docstring', and 'signature',
+        the latter of which is either an inspect.Signature object
+        or None.
+
+    """
+
+    return NumpyDocstring(doc, config)
+
+
+unwanted_classes = (ARFModel, RMFModel, RSPModel, PileupRMFModel,
+                    ConvolutionModel, PSFModel,
+                    TableModel, UserModel,
+                    TemplateModel, InterpolatingTemplateModel)
+
+
+def unwanted(name, sym):
+    """Is this a symbol we do not want to process?
+
+    Use simple heuristics to remove unwanted symbols.
+
+    Parameters
+    ----------
+    name : str
+        The name of the symbol
+    sym
+        The Sherpa symbol.
+
+    Returns
+    -------
+    flag : bool
+        This is True if the symbol should not be used to create an
+        ahelp file.
+
+    """
+
+    if name.startswith('_'):
+        return True
+
+    if name in ['create_arf']:
+        print("  - skipping {} as a known problem case".format(name))
+        return True
+
+    if isclass(sym) and issubclass(sym, BaseData):
+        return True
+
+    # Does isclass handle 'class or subclass' so we don't need to?
+    #
+    if type(sym) == ModelWrapper and \
+       (sym.modeltype in unwanted_classes or
+        issubclass(sym.modeltype, unwanted_classes)):
+        return True
+
+    # Don't bother with objects
+    #
+    if type(sym) == type(object):
+        return True
+
+    return False

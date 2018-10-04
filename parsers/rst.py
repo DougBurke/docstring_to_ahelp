@@ -110,28 +110,25 @@ rst.roles.register_local_role('obj', obj_role)
 rst.roles.register_local_role('exc', exc_role)
 
 
-def parse_restructured(sdoc):
+def parse_restructured(name, sdoc):
     """Convert from the cleaned-up docstring to docutils.
 
     Parameters
     ----------
-    sdoc : dict
-        The keys are 'name', 'docstring' which contains a docstring
-        object, and 'signature', which is None or an inspect.Signature
-        object.
+    name : str
+        The symbol name.
+    sdoc :
+        The docstring in restructured text.
 
     Returns
     -------
-    retval : dict
-        The keys are 'name', 'document', and 'signature'.
+    retval
+        The document in restructured text format.
 
     """
 
-    name = sdoc['name']
     default_settings = OptionParser(components=(rst.Parser,)).get_default_values()
     document = new_document(name, default_settings)
     parser = rst.Parser()
-    parser.parse(str(sdoc['docstring']), document)
-    return {'name': name,
-            'document': document,
-            'signature': sdoc['signature']}
+    parser.parse(str(sdoc), document)
+    return document

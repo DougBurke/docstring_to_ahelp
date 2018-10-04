@@ -43,28 +43,29 @@ import os
 
 from sherpa.astro import ui
 
-from parsers.sherpa import sherpa_to_restructured
+from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 
 
-def process_symbol(name, debug=False):
+def process_symbol(name, sym, debug=False):
 
-    sherpa_doc = sherpa_to_restructured(name)
+    sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
         print("  - has no doc")
         return None
 
+    sig = sym_to_sig(name, sym)
+
     if debug:
         print("---- formats")
-        print("-- Sherpa:\n{}".format(sherpa_doc['docstring']))
+        print("-- Sherpa:\n{}".format(sherpa_doc))
 
-
-    rst_doc = parse_restructured(sherpa_doc)
+    rst_doc = parse_restructured(name, sherpa_doc)
     if debug:
-        print("-- RestructuredText:\n{}".format(rst_doc['document']))
+        print("-- RestructuredText:\n{}".format(rst_doc))
 
-    doc = convert_docutils(rst_doc)
+    doc = convert_docutils(name, rst_doc, sig)
     return doc
 
 
@@ -110,20 +111,12 @@ def convert(ahelpdir, outdir, debug=False, restrict=None):
 
         print("# {}".format(name))
 
-        if name.startswith('_'):
-            print(" - skipping as leading underscore")
-            continue
-
-        if name in ['create_arf']:
-            print("  - known problem case")
-            continue
-
         sym = getattr(ui, name)
-        if type(sym) == type(object):
-            print(" - skipping {} as object".format(name))
+        if unwanted(name, sym):
+            print(" - skipping as unwanted")
             continue
 
-        xml = process_symbol(name, debug=debug)
+        xml = process_symbol(name, sym, debug=debug)
         if xml is None:
             continue
 

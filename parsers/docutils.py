@@ -622,7 +622,7 @@ def find_syntax(name, sig, indoc):
     ----------
     name : str
         The name of the symbol being processed.
-    sig : inspect.Signature or None
+    sig : str or None
         The Python signature of this symbol, if available. It is
         used when there is no syntax line.
     indoc : list of nodes
@@ -643,7 +643,7 @@ def find_syntax(name, sig, indoc):
     # for classes.
     #
     if sig is not None:
-        argline = make_syntax_block(["{}{}".format(name, sig)])
+        argline = make_syntax_block([sig])
     else:
         argline = None
 
@@ -1061,15 +1061,17 @@ def find_examples(indoc):
     return out, rnodes
 
 
-def convert_docutils(indoc):
+def convert_docutils(name, doc, sig):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
     ----------
-    indoc : dict
-        The keys are 'name', 'document', and 'signature'.
-        The document field contains the docutils structure
-        and signature is None or an inspect.Signature object.
+    name : str
+    doc
+        The document (resturctured text)
+    sig : str or None
+        The signature of the name (will be over-ridden by the
+        document, if given).
 
     Returns
     -------
@@ -1078,14 +1080,12 @@ def convert_docutils(indoc):
 
     """
 
-    name = indoc['name']
-
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
     # confused.
     #
-    nodes = list(indoc['document'])
-    syntax, nodes = find_syntax(name, indoc['signature'], nodes)
+    nodes = list(doc)
+    syntax, nodes = find_syntax(name, sig, nodes)
     synopsis, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
 
