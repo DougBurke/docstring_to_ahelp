@@ -693,6 +693,36 @@ def find_syntax(name, sig, indoc):
     return out, indoc[1:]
 
 
+def add_pars_to_syntax(syntax, fieldlist):
+    """Do we add a summary of the parameter information to SYNTAX?
+
+    """
+
+    if syntax is None or fieldlist is None:
+        return None
+
+    partypes = []
+    for par in fieldlist['params']:
+        try:
+            partypes.append((par['name'], par['type']))
+        except KeyError:
+            continue
+
+    if len(partypes) == 0:
+        return syntax
+
+    ElementTree.SubElement(syntax, 'LINE').text = ''
+
+    # TODO: Do we need a header line?
+    for pname, ptype in partypes:
+        ps = make_para_blocks(ptype)
+        assert len(ps) == 1
+        ptxt = '{} - {}'.format(pname, ps[0].text)
+        ElementTree.SubElement(syntax, 'LINE').text = ptxt
+
+    return syntax
+
+
 def find_synopsis(indoc):
     """Return the synopsis contents, if present, and the remaining document.
 
@@ -1196,6 +1226,7 @@ def convert_docutils(name, doc, sig):
     #      a summary be added tothe SYNTAX block too?
     #
     params = extract_params(fieldlist1)
+    add_pars_to_syntax(syntax, fieldlist1)
 
     notes, nodes = find_notes(nodes)
     refs, nodes = find_references(nodes)
