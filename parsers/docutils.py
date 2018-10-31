@@ -9,6 +9,7 @@ TODO:
 
 """
 
+from collections import OrderedDict
 import sys
 
 from docutils import nodes
@@ -135,17 +136,21 @@ def astext(node):
 
         return "{} {}".format(ctr, cts)
 
-    if node.tagname == 'footnote_reference':
+    elif node.tagname == 'footnote_reference':
         return "[{}]".format(node.astext())
 
-    if node.tagname == 'title_reference':
+    elif node.tagname == 'title_reference':
         return "`{}`".format(node.astext())
 
-    if node.tagname == 'literal':
+    elif node.tagname == 'literal':
         # what should be done here?
         return node.astext()
 
-    if node.tagname == 'emphasis':
+    elif node.tagname == 'emphasis':
+        # what should be done here?
+        return node.astext()
+
+    elif node.tagname == 'strong':
         # what should be done here?
         return node.astext()
 
@@ -210,15 +215,15 @@ def convert_para(para):
     """
 
     text = []
-    reported = set([])
+    # reported = set([])
 
     if para.tagname != "paragraph":
         print("  - paragraph handling {}".format(para.tagname))
 
     for n in para:
         text.append(astext(n))
-        name = n.tagname
-        ntxt = astext(n)
+        # name = n.tagname
+        # ntxt = astext(n)
 
     out = ElementTree.Element("PARA")
     out.text = "\n".join(text)
@@ -451,6 +456,7 @@ are given zero abundance</paragraph></list_item><list_item><paragraph>'lodd', fr
 
 """
 
+
 def add_table_row(out, el):
     """Given a table row, add it to the table.
 
@@ -526,7 +532,7 @@ def convert_note(note):
 
     """
 
-    assert note.tagname == 'note', tbl
+    assert note.tagname == 'note'
 
     # Assume:
     #  1 paragraph - text
@@ -550,6 +556,30 @@ def convert_note(note):
     return out
 
 
+def convert_field_body(fbody):
+    """Create a field_body block.
+
+    Parameters
+    ----------
+    fbody : docutils.nodes.field_body
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    """
+
+    assert fbody.tagname == 'field_body'
+
+    assert all([n.tagname == 'paragraph' for n in fbody]), fbody
+
+    # could handle this, but would need to return [Element]
+    #
+    assert len(fbody) == 1
+    return convert_para(fbody[0])
+
+
 para_converters = {'doctest_block': convert_doctest_block,
                    'block_quote': convert_block_quote,
                    'enumerated_list': convert_enumerated_list,
@@ -557,6 +587,7 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'bullet_list': convert_bullet_list,
                    'table': convert_table,
                    'note': convert_note,
+                   'field_body': convert_field_body,
                    'literal_block': convert_literal_block}
 
 # return a list
@@ -776,8 +807,17 @@ def find_fieldlist(indoc):
     if node.tagname != 'field_list':
         return None, indoc
 
-    out = []
-    store = None
+    # Use an OrderedDict rather than a list, with the idea that
+    # the field_name value can be used to determine whether we are
+    # adding a new entry or appending to an existing entry.
+    #
+    # This means that raises and returns have a "fake" name added,
+    # and will contain multiple elements.
+    #
+    params = OrderedDict()
+    returns = []
+    raises = []
+
     for field in node:
         assert field.tagname == 'field', field
 
@@ -796,56 +836,34 @@ def find_fieldlist(indoc):
             else:
                 raise ValueError("Unexpected field member:\n{}".format(f))
 
-        if name == 'raises':
-            if store is not None:
-                out.append(store)
-                store = None
-
-            out.append({'type': 'error',
-                        'description': body})
+        toks = name.split(' ', 1)
+        t0 = toks[0]
+        ntoks = len(toks)
+        assert t0 in ['param', 'ivar', 'type', 'rtype', 'raises', 'returns'], name
+        if t0 == 'raises':
+            assert ntoks == 1, name
+            raises.append(body)
             continue
 
-        elif name == 'returns':
-            if store is not None:
-                out.append(store)
-                store = None
+        elif t0 in ['returns', 'rtype']:
+            assert ntoks == 1, name
+            returns.append((t0, body))
+            continue
 
-            sys.stderr.write("Note: skipping returns for now\n")
-            # TODO: will need to support a complex return type too
-            break
+        assert ntoks == 2, name
+        pname = toks[1]
 
-        # TODO: handle multi-parameter values better
-        toks = name.split(' ', 1)
-        assert toks[0] in ['param', 'ivar', 'type'], name
+        try:
+            store = params[pname]
+        except KeyError:
+            params[pname] = {'name': pname}
+            store = params[pname]
 
-        # assume always done in param/type order
-        if toks[0] == 'param':
-            if store is not None:
-                out.append(store)
+        store[t0] = body
 
-            store = {'type': 'parameter',
-                     'name': toks[1]}
-
-        elif toks[0] == 'ivar':
-            if store is not None:
-                out.append(store)
-
-            store = {'type': 'attribute',
-                     'name': toks[1]}
-
-        elif toks[0] == 'type':
-
-            assert store is not None
-            assert store['name'] == toks[1], (store, name)
-            store['description'] = body
-
-        else:
-            raise ValueError("name={} toks[0]={}".format(name, toks[0]))
-
-    if store is not None:
-        out.append(store)
-
-    return out, indoc[1:]
+    out = list(params.values())
+    return {'params': out, 'returns': returns, 'raises': raises}, \
+        indoc[1:]
 
 
 def find_seealso(indoc):
@@ -1061,6 +1079,65 @@ def find_examples(indoc):
     return out, rnodes
 
 
+def extract_params(fieldinfo):
+    """Extract the parameter information from a fieldlist.
+
+    """
+
+    if fieldinfo is None:
+        return None
+
+    parinfo = fieldinfo['params']
+    retinfo = fieldinfo['returns']
+
+    nparams = len(parinfo)
+    nret = len(retinfo)
+    if nparams == 0 and nret == 0:
+        raise ValueError("Empty parameter block!")
+
+    adesc = ElementTree.Element("ADESC", {'title': 'PARAMETERS'})
+
+    p = ElementTree.SubElement(adesc, 'PARA')
+    if nparams == 0:
+        p.text = 'This function has no parameters'
+    elif nparams == 1:
+        p.text = 'The parameter for this function is:'
+    else:
+        p.text = 'The parameters for this function are:'
+
+    for par in parinfo:
+
+        # Keys are name, param, and type. At present type is not used.
+
+        if 'param' in par:
+            ps = make_para_blocks(par['param'])
+            assert len(ps) > 0
+            ps[0].set('title', par['name'])
+
+        else:
+            # Not description, so an empty paragraph.
+            p = ElementTree.SubElement(adesc, 'PARA', {'title': par['name']})
+            ps = [p]
+
+        for p in ps:
+            adesc.append(p)
+
+    if nret == 0:
+        return adesc
+
+    p = ElementTree.SubElement(adesc, 'PARA', {'title': 'Return value'})
+    p.text = 'The return value from this function is:'
+
+    # For now only handle the simple case
+    #
+    rvals = [r[1] for r in retinfo if r[0] == 'returns']
+    assert len(rvals) == 1, retinfo
+
+    adesc.append(convert_para(rvals[0]))
+
+    return adesc
+
+
 def convert_docutils(name, doc, sig):
     """Given the docutils documentation, convert to ahelp DTD.
 
@@ -1094,11 +1171,31 @@ def convert_docutils(name, doc, sig):
     # block (are they automatically merged in this case?),
     # but that is not currently guaranteed (e.g. fake_pha)
     #
+    # Note that I have edited fake_pha and plot_pvalue so that
+    # fieldlist2 should now always be None, but this has not
+    # yet made it into the distribution. So the assumption is
+    # to skip fieldlist2 if set, but should probably have some
+    # safety check to warn if it shouldn't be (i.e. contents are
+    # not a raises block), and we also need to remove raises
+    # from fieldlist1, as this isn't wanted for ahelp
+    #
     fieldlist1, nodes = find_fieldlist(nodes)
 
     seealso, nodes = find_seealso(nodes)
 
     fieldlist2, nodes = find_fieldlist(nodes)
+
+    if fieldlist2 is not None:
+        sys.stderr.write(" - ignoring section fieldlist\n")
+
+    # This has been separated fro the extraction of the field list
+    # to support experimentation.
+    #
+    # QUS: should the parameters be added purely as an ADESC block
+    #      (or tacked on the end of the DESC block), or should
+    #      a summary be added tothe SYNTAX block too?
+    #
+    params = extract_params(fieldlist1)
 
     notes, nodes = find_notes(nodes)
     refs, nodes = find_references(nodes)
@@ -1129,7 +1226,7 @@ def convert_docutils(name, doc, sig):
                 }
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
-    for n in [synopsis, syntax, desc, examples, notes, refs]:
+    for n in [synopsis, syntax, desc, examples, params, notes, refs]:
         if n is None:
             continue
 
