@@ -10,7 +10,6 @@ just to query the ahelp file directly.
 """
 
 import os
-import sys
 
 from xml.etree import ElementTree
 
@@ -69,8 +68,8 @@ def find_metadata(name):
         else:
             return v
 
-    return { 'key': key,
-             'refkeywords': clean(refkeywords),
-             'seealsogroups': clean(seealso),
-             'displayseealsogroups': clean(display),
-             'context': clean(context) }
+    return {'key': key,
+            'refkeywords': clean(refkeywords),
+            'seealsogroups': clean(seealso),
+            'displayseealsogroups': clean(display),
+            'context': clean(context)}
