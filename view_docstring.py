@@ -42,7 +42,7 @@ def convert_and_view(infile):
     # Just look for the first "token"
     name = basename.split('.')[0]
 
-    sig = sym_to_sig(name, sym=None)
+    sig, sym = sym_to_sig(name, sym=None)
 
     cts = open(infile, 'r').read()
 
@@ -54,7 +54,9 @@ def convert_and_view(infile):
 
     sherpa_doc = doc_to_rst(cts)
     rst_doc = parse_restructured(name, sherpa_doc)
-    xmldoc = convert_docutils(name, rst_doc, sig, metadata=ahelp)
+    xmldoc = convert_docutils(name, rst_doc, sig,
+                              symbol=sym,
+                              metadata=ahelp)
 
     outfile = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
     save_doc(outfile.name, xmldoc)

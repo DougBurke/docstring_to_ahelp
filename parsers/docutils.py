@@ -1217,7 +1217,7 @@ def extract_params(fieldinfo):
     return adesc
 
 
-def convert_docutils(name, doc, sig, metadata=None):
+def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
@@ -1228,6 +1228,9 @@ def convert_docutils(name, doc, sig, metadata=None):
     sig : str or None
         The signature of the name (will be over-ridden by the
         document, if given).
+    symbol
+        The symbol to document (e.g. sherpa.astro.ui.load_table or
+        sherpa.astro.ui.xsapec) or None.
     metadata : dict or None, optional
         The AHELP metadata for this file (the return value of
         parsers.ahelp.find_metadata).

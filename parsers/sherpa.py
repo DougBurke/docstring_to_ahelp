@@ -132,8 +132,8 @@ def sym_to_sig(name, sym):
 
     Returns
     -------
-    result : str or None
-        The signature.
+    result, sym : str or None, symbol
+        The signature and the symbol.
 
     Notes
     -----
@@ -152,7 +152,7 @@ def sym_to_sig(name, sym):
         if sig is not None:
             sig = "{}{}".format(name, sig)
 
-    return sig
+    return sig, sym
 
 
 def doc_to_rst(doc):
@@ -260,7 +260,7 @@ def syms_from_module(modulename):
 
         store = {'name': name,
                  'symbol': sym,
-                 'signature': sym_to_sig(name, sym),
+                 'signature': sym_to_sig(name, sym)[0],
                  'docstring': sym_to_docstring(name, sym)}
 
         out['docstrings'].append(store)

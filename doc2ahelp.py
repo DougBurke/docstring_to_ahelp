@@ -3,7 +3,7 @@
 """
 Usage:
 
-  ./doc2ahelp.py ahelpdir outdir [names]
+  ./doc2ahelp.py outdir [names]
      --debug
 
 Aim:
@@ -12,15 +12,15 @@ Extract the docstring information from Sherpa and create ahelp XML
 files for these symbols (functions, objects that we treat as
 strings/functions in Sherpa, meta data created from these symbols).
 
-The ahelpdir contains the "metadata" used to create the ahelp
-files (refkeywords, see also information). This is currently unused.
-
 The script requires that a CIAO installation has been initialized,
 since it is used to access the Sherpa documentation from
 
    sherpa.astro.ui
    sherpa.stats
    sherpa.optmethods
+
+The ahelp files in the CIAO documentation are used to create the
+ahelp metadata.
 
 The output is to outdir/<key>.xml where <key> is based on the
 "ahelp key" (it should be the same but may be different).
@@ -29,12 +29,9 @@ The script will over-write any existing file.
 
 TODO:
   - should I replace trailing :: by :?
-  - implement copy-over of XML metadata
   - indicate new/missing files
   - create composite pages like 'ahelp models' 'ahelp xs'
 
-  - parameter for set_xsxsect are not being picked up correctly
-    (but we don't see that in the output yet)
   - how to handle the known problem cases?
 
 """
@@ -46,18 +43,19 @@ from sherpa.astro import ui
 from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
+from parsers.ahelp import find_metadata
 
 from helpers import save_doc
 
 
-def process_symbol(name, sym, debug=False):
+def process_symbol(name, sym, ahelp=None, debug=False):
 
     sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
         print("  - has no doc")
         return None
 
-    sig = sym_to_sig(name, sym)
+    sig, _ = sym_to_sig(name, sym)
 
     if debug:
         print("---- formats")
@@ -67,11 +65,12 @@ def process_symbol(name, sym, debug=False):
     if debug:
         print("-- RestructuredText:\n{}".format(rst_doc))
 
-    doc = convert_docutils(name, rst_doc, sig)
+    doc = convert_docutils(name, rst_doc, sig,
+                           symbol=sym, metadata=ahelp)
     return doc
 
 
-def convert(ahelpdir, outdir, debug=False, restrict=None):
+def convert(outdir, debug=False, restrict=None):
     """Convert the symbols.
 
     Parameters
@@ -103,7 +102,13 @@ def convert(ahelpdir, outdir, debug=False, restrict=None):
             print(" - skipping as unwanted")
             continue
 
-        xml = process_symbol(name, sym, debug=debug)
+        try:
+            ahelp = find_metadata(name)
+        except Exception as exc:
+            print(" - ahelp metadata skipped as {}".format(exc))
+            ahelp = None
+
+        xml = process_symbol(name, sym, ahelp=ahelp, debug=debug)
         if xml is None:
             continue
 
@@ -160,10 +165,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=help_str,
                                      prog=sys.argv[0])
 
-    parser.add_argument("ahelpdir",
-                        help="Directory containing ahelp metadata (currently UNUSED)")
     parser.add_argument("outdir",
-                        help="Files are written to this directory (created if missing)")
+                        help="Files are written to this directory (must exist)")
 
     parser.add_argument("names", nargs='?', default=None,
                         help="Restrict to these names (stack syntax)")
@@ -176,6 +179,6 @@ if __name__ == "__main__":
     if restrict is not None:
         restrict = stk.build(restrict)
 
-    convert(args.ahelpdir, args.outdir,
+    convert(args.outdir,
             debug=args.debug,
             restrict=restrict)
