@@ -1314,6 +1314,24 @@ def convert_docutils(name, doc, sig):
 
     # Add the "standard" postamble.
     #
+    # VERY HACKY way to determine talking about an XSPEC routine
+    #
+    if name.find('xs') != -1:
+        xspec = ElementTree.SubElement(entry, 'ADESC',
+                                       {'title': 'XSPEC version'})
+        xpara = ElementTree.SubElement(xspec, 'PARA')
+        xpara.text = 'CIAO 4.11 comes with support for version ' + \
+                     '12.10.0e of the XSPEC models. This can be ' + \
+                     'checked with the following:'
+
+        cstr = "% python -c 'from sherpa.astro import xspec; " + \
+               "print(xspec.get_xsversion())'"
+
+        xpara2 = ElementTree.SubElement(xspec, 'PARA')
+        xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
+        ElementTree.SubElement(xsyn, 'LINE').text = cstr
+        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.0e'
+
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
     para.text = 'See the '
