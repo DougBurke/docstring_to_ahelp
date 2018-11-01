@@ -574,10 +574,16 @@ def convert_field_body(fbody):
 
     assert all([n.tagname == 'paragraph' for n in fbody]), fbody
 
-    # could handle this, but would need to return [Element]
+    # could handle multiple blocks, but would need to return [Element]
     #
-    assert len(fbody) == 1
-    return convert_para(fbody[0])
+    n = len(fbody)
+    if n == 0:
+        # do we want this?
+        return ElementTree.Element('PARA')
+    elif n == 1:
+        return convert_para(fbody[0])
+    else:
+        raise ValueError("Need to handle {} blocks".format(n))
 
 
 para_converters = {'doctest_block': convert_doctest_block,
@@ -883,6 +889,33 @@ def find_fieldlist(indoc):
         assert ntoks == 2, name
         pname = toks[1]
 
+        # NOTE: for attributes (and parameters, but don't think have any
+        # like this), can have multiple "ivar p1", "ivar p2" lines
+        # before the description. Need to amalgamate.
+        #
+        # Heuristic
+        #    preceding name ends in a comma
+        #    field_body of preceding is empty
+        #    assume this happens at most once
+        #
+        if t0 == 'ivar' and len(params) > 0:
+            prev_key = list(params.keys())[-1]
+            prev_val = params[prev_key]
+
+            # strip() is probably not needed, but just in case
+            if prev_key.strip().endswith(',') and len(prev_val['ivar']) == 0:
+
+                # edit the params structure, but as removing the
+                # last item it is okay (ie ordering is maintained).
+                #
+                del params[prev_key]
+                new_key = "{} {}".format(prev_key, pname)
+
+                prev_val['name'] = new_key
+                prev_val['ivar'] = body
+                params[new_key] = prev_val
+                continue
+
         try:
             store = params[pname]
         except KeyError:
@@ -1120,27 +1153,43 @@ def extract_params(fieldinfo):
     parinfo = fieldinfo['params']
     retinfo = fieldinfo['returns']
 
+    is_attrs = any(['ivar' in p for p in parinfo])
+
     nparams = len(parinfo)
     nret = len(retinfo)
     if nparams == 0 and nret == 0:
         raise ValueError("Empty parameter block!")
 
-    adesc = ElementTree.Element("ADESC", {'title': 'PARAMETERS'})
+    if is_attrs:
+        name = 'object'
+        value = 'attribute'
+    else:
+        name = 'function'
+        value = 'parameter'
+
+    adesc = ElementTree.Element("ADESC",
+                                {'title': '{}S'.format(value.upper())})
 
     p = ElementTree.SubElement(adesc, 'PARA')
     if nparams == 0:
-        p.text = 'This function has no parameters'
+        p.text = 'This {} has no {}s'.format(name, value)
     elif nparams == 1:
-        p.text = 'The parameter for this function is:'
+        p.text = 'The {} for this {} is:'.format(value, name)
     else:
-        p.text = 'The parameters for this function are:'
+        p.text = 'The {}s for this {} are:'.format(value, name)
 
     for par in parinfo:
 
         # Keys are name, param, and type. At present type is not used.
-
+        #          name, ivar
+        #
         if 'param' in par:
             ps = make_para_blocks(par['param'])
+            assert len(ps) > 0
+            ps[0].set('title', par['name'])
+
+        elif 'ivar' in par:
+            ps = make_para_blocks(par['ivar'])
             assert len(ps) > 0
             ps[0].set('title', par['name'])
 
