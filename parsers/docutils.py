@@ -779,8 +779,9 @@ def find_synopsis(indoc):
 
     Returns
     -------
-    synopsis, remaining : ElementTree.Element or None, list of nodes
-        The contents of the SYNOPSIS block, and the remaining nodes.
+    synopsis, tags, remaining : ElementTree.Element or None, list of str, list of nodes
+        The contents of the SYNOPSIS block, words which can be used in the
+        refkeywords attribute, and the remaining nodes.
 
     Notes
     -----
@@ -791,11 +792,27 @@ def find_synopsis(indoc):
 
     node = indoc[0]
     if not isinstance(node, nodes.paragraph):
-        return None, indoc
+        return None, '', indoc
+
+    syn = node.astext().strip()
+
+    def clean(v):
+        # assuming only have one of these conditions to process, so the
+        # order of operations does not matter
+        for c in [',', '.', '"', "'"]:
+            if v.endswith(c):
+                v = v[:-1]
+            if v.startswith(c):
+                v = v[1:]
+
+        return v
+
+    keys = [clean(k) for k in syn.lower().split()]
+    keywords = list(set(keys))
 
     out = ElementTree.Element('SYNOPSIS')
-    out.text = node.astext().strip()
-    return out, indoc[1:]
+    out.text = syn
+    return out, keywords, indoc[1:]
 
 
 def find_desc(indoc):
@@ -1259,6 +1276,54 @@ def extract_params(fieldinfo):
     return adesc
 
 
+def create_seealso(name, seealso):
+    """Come up with the seealsogroups metadata.
+
+    Parameters
+    ----------
+    name : str
+        The name of the symbol being documented.
+    seealso : list of str
+        The symbols that have been manually selected as being related
+        to name.
+
+    Returns
+    -------
+    seealso, displayseealso : str, str
+        The proposed seealsogroup and displayseealsogroup settings
+        in the ahelp file.
+
+    Notes
+    -----
+    The idea is to create pairs of tokens (name, s) where s is each
+    element of seealso, so that ahelp can match the two. This could be
+    changed to handle all routines, but we do not have a symmetrical
+    relationship in the manual "See Also" sections, so this would miss
+    out. It may be that we need to use displayseealsogroup instead;
+    let's see.
+    """
+
+    if seealso is None:
+        print("  - {} has no SEE ALSO".format(name))
+        return '', ''
+
+    # remove case and sort lexicographically.
+    #
+    def convert(t1, t2):
+        if t1 < t2:
+            toks = (t1, t2)
+        else:
+            toks = (t2, t1)
+
+        return "{}{}".format(*toks)
+
+    nlower = name.lower()
+    pairs = [convert(nlower, s.lower()) for s in seealso if s.strip() != ',']
+
+    out = ' '.join(pairs)
+    return out, ''
+
+
 def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     """Given the docutils documentation, convert to ahelp DTD.
 
@@ -1290,7 +1355,7 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     #
     nodes = list(doc)
     syntax, nodes = find_syntax(name, sig, nodes)
-    synopsis, nodes = find_synopsis(nodes)
+    synopsis, refkeywords, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
 
     # Can have parameters and then a "raises" section, or just one,
@@ -1344,21 +1409,31 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
         # create the syntax block
         sys.stderr.write("TODO: does {} need a SYNTAX block?\n".format(name))
 
+    # Try and come up with an automated 'See Also' solution
+    #
+    seealsotags, displayseealsotags = create_seealso(name, seealso)
+
     # Create the output
     #
     root = ElementTree.Element('cxchelptopics')
     outdoc = ElementTree.ElementTree(root)
 
+    # Use a "known but unused" context here, which indicates those
+    # symbols which do not have an existing ahelp file.
+    #
     xmlattrs = {'pkg': 'sherpa',
                 'key': name,
-                'refkeywords': '',
-                'seealsogroups': '',  # TODO
-                'displayseealsogroups': '',  # TODO
+                'refkeywords': ' '.join(refkeywords),
+                'seealsogroups': seealsotags,
+                'displayseealsogroups': displayseealsotags,
                 'context': 'sherpaish'  # TODO
                 }
 
     if metadata is not None:
         for k, v in metadata.items():
+            if k in ['seealsogroups', 'displayseealsogroups']:
+                continue
+
             assert k in xmlattrs
             xmlattrs[k] = v
 
