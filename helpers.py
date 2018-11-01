@@ -1,7 +1,5 @@
 """Utility routines."""
 
-import os
-
 
 def save_doc(outfile, xmldoc):
     """Write the ahelp XML to a file."""
