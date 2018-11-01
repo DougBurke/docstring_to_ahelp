@@ -63,8 +63,14 @@ def find_metadata(name):
     display = entry.get('displayseealsogroups')
     context = entry.get('context')
 
+    def clean(v):
+        if v is None:
+            return ''
+        else:
+            return v
+
     return { 'key': key,
-             'refkeywords': refkeywords,
-             'seealsogroups': seealso,
-             'displayseealsogroups': display,
-             'context': context }
+             'refkeywords': clean(refkeywords),
+             'seealsogroups': clean(seealso),
+             'displayseealsogroups': clean(display),
+             'context': clean(context) }
