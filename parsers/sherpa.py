@@ -19,7 +19,7 @@ from inspect import cleandoc, isclass, signature
 
 from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.instrument import ARFModel, RMFModel, RSPModel, \
-    PileupRMFModel
+    PileupRMFModel, MultiResponseSumModel
 from sherpa.instrument import ConvolutionModel, PSFModel
 from sherpa.data import BaseData
 from sherpa.models.basic import TableModel, UserModel
@@ -177,7 +177,8 @@ def doc_to_rst(doc):
 unwanted_classes = (ARFModel, RMFModel, RSPModel, PileupRMFModel,
                     ConvolutionModel, PSFModel,
                     TableModel, UserModel,
-                    TemplateModel, InterpolatingTemplateModel)
+                    TemplateModel, InterpolatingTemplateModel,
+                    MultiResponseSumModel)
 
 
 def unwanted(name, sym):
