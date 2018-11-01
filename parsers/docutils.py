@@ -1158,7 +1158,9 @@ def extract_params(fieldinfo):
     nparams = len(parinfo)
     nret = len(retinfo)
     if nparams == 0 and nret == 0:
-        raise ValueError("Empty parameter block!")
+        assert len(fieldinfo['raises']) != 0
+        print(" - looks like only has a raises block, so skipping")
+        return None
 
     if is_attrs:
         name = 'object'
