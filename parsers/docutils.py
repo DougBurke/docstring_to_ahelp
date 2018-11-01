@@ -16,6 +16,8 @@ from docutils import nodes
 
 from xml.etree import ElementTree
 
+from sherpa.ui.utils import ModelWrapper
+
 
 def splitWhile(pred, xs):
     """Split input when the predicate fails.
@@ -729,6 +731,44 @@ def add_pars_to_syntax(syntax, fieldlist):
     return syntax
 
 
+def augment_examples(examples, symbol):
+    """Add in examples based on the symbol (at present models only).
+
+    """
+
+    if symbol is None:
+        return examples
+
+    if not isinstance(symbol, ModelWrapper):
+        return examples
+
+    mtype = symbol.modeltype.__name__.lower()
+    strval = str(symbol.modeltype('mdl'))
+
+    if examples is None:
+        examples = ElementTree.Element('QEXAMPLELIST')
+
+    example = ElementTree.Element('QEXAMPLE')
+
+    syn = ElementTree.SubElement(example, 'SYNTAX')
+    line = ElementTree.SubElement(syn, 'LINE')
+    line.text = '>>> create_model_component("{}", "mdl")'.format(mtype)
+    line = ElementTree.SubElement(syn, 'LINE')
+    line.text = '>>> print(mdl)'
+
+    desc = ElementTree.SubElement(example, 'DESC')
+    para = ElementTree.SubElement(desc, 'PARA')
+    para.text = 'Create a component of the {} model'.format(mtype) + \
+                ' and display its default parameters. The output is:'
+
+    verb = ElementTree.SubElement(desc, 'VERBATIM')
+    verb.text = strval
+
+    examples.insert(0, example)
+
+    return examples
+
+
 def find_synopsis(indoc):
     """Return the synopsis contents, if present, and the remaining document.
 
@@ -1288,6 +1328,10 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     notes, nodes = find_notes(nodes)
     refs, nodes = find_references(nodes)
     examples, nodes = find_examples(nodes)
+
+    # Do we augment the examples?
+    #
+    examples = augment_examples(examples, symbol)
 
     # assert nodes == [], nodes
     if nodes != []:
