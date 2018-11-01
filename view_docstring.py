@@ -50,7 +50,7 @@ def convert_and_view(infile):
         ahelp = find_metadata(name)
     except Exception as exc:
         print("SKIPPING AHELP METADATA: {}".format(exc))
-        ahelp = none
+        ahelp = None
 
     sherpa_doc = doc_to_rst(cts)
     rst_doc = parse_restructured(name, sherpa_doc)
