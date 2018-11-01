@@ -22,6 +22,7 @@ import tempfile
 from parsers.sherpa import doc_to_rst, sym_to_sig
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
+from parsers.ahelp import find_metadata
 
 from helpers import save_doc
 
@@ -45,9 +46,15 @@ def convert_and_view(infile):
 
     cts = open(infile, 'r').read()
 
+    try:
+        ahelp = find_metadata(name)
+    except Exception as exc:
+        print("SKIPPING AHELP METADATA: {}".format(exc))
+        ahelp = none
+
     sherpa_doc = doc_to_rst(cts)
     rst_doc = parse_restructured(name, sherpa_doc)
-    xmldoc = convert_docutils(name, rst_doc, sig)
+    xmldoc = convert_docutils(name, rst_doc, sig, metadata=ahelp)
 
     outfile = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
     save_doc(outfile.name, xmldoc)

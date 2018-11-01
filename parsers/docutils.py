@@ -1217,7 +1217,7 @@ def extract_params(fieldinfo):
     return adesc
 
 
-def convert_docutils(name, doc, sig):
+def convert_docutils(name, doc, sig, metadata=None):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
@@ -1228,6 +1228,9 @@ def convert_docutils(name, doc, sig):
     sig : str or None
         The signature of the name (will be over-ridden by the
         document, if given).
+    metadata : dict or None, optional
+        The AHELP metadata for this file (the return value of
+        parsers.ahelp.find_metadata).
 
     Returns
     -------
@@ -1299,11 +1302,17 @@ def convert_docutils(name, doc, sig):
 
     xmlattrs = {'pkg': 'sherpa',
                 'key': name,
-                'refkeywords': '',  # TODO
+                'refkeywords': '',
                 'seealsogroups': '',  # TODO
                 'displayseealsogroups': '',  # TODO
                 'context': 'sherpaish'  # TODO
                 }
+
+    if metadata is not None:
+        for k, v in metadata.items():
+            assert k in xmlattrs
+            xmlattrs[k] = v
+
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
     for n in [synopsis, syntax, desc, examples, params, notes, refs]:
