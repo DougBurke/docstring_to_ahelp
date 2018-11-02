@@ -1324,6 +1324,32 @@ def create_seealso(name, seealso):
     return out, ''
 
 
+def find_context(name, symbol=None):
+    """What is the ahelp context for this symbol?
+
+    If we can not find a context, use sherpaish so that it can
+    be easily identified.
+
+    Parameters
+    ----------
+    name : str
+    symbol
+        The symbol to document (e.g. sherpa.astro.ui.load_table or
+        sherpa.astro.ui.xsapec) or None.
+
+    Returns
+    -------
+    context : str
+
+    """
+
+    if symbol is not None:
+        if isinstance(symbol, ModelWrapper):
+            return 'models'
+
+    return 'sherpaish'
+
+
 def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     """Given the docutils documentation, convert to ahelp DTD.
 
@@ -1426,7 +1452,7 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
                 'refkeywords': ' '.join(refkeywords),
                 'seealsogroups': seealsotags,
                 'displayseealsogroups': displayseealsotags,
-                'context': 'sherpaish'  # TODO
+                'context': find_context(name, symbol)
                 }
 
     if metadata is not None:
@@ -1436,6 +1462,9 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
 
             assert k in xmlattrs
             xmlattrs[k] = v
+
+    if xmlattrs['context'] == 'sherpaish':
+        print(" - fall back context=sherpaish for {}".format(name))
 
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
