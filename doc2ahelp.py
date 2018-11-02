@@ -40,7 +40,7 @@ import os
 
 from sherpa.astro import ui
 
-from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted
+from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted, find_synonyms
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
@@ -48,7 +48,7 @@ from parsers.ahelp import find_metadata
 from helpers import save_doc
 
 
-def process_symbol(name, sym, ahelp=None, debug=False):
+def process_symbol(name, sym, ahelp=None, synonyms=None, debug=False):
 
     sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
@@ -66,7 +66,7 @@ def process_symbol(name, sym, ahelp=None, debug=False):
         print("-- RestructuredText:\n{}".format(rst_doc))
 
     doc = convert_docutils(name, rst_doc, sig,
-                           symbol=sym, metadata=ahelp)
+                           symbol=sym, metadata=ahelp, synonyms=synonyms)
     return doc
 
 
@@ -87,6 +87,8 @@ def convert(outdir, debug=False, restrict=None):
         sys.stderr.write("ERROR: outdir={} does not exist\n".format(outdir))
         sys.exit(1)
 
+    synonyms, originals = find_synonyms()
+
     # Restrict the symbols that get processed
     #
     names = sorted(list(ui.__all__))
@@ -102,13 +104,24 @@ def convert(outdir, debug=False, restrict=None):
             print(" - skipping as unwanted")
             continue
 
+        if name in synonyms:
+            print(" - skipping as a synonym for {}".format(synonyms[name]))
+            continue
+
+        try:
+            syn_names = originals[name]
+        except KeyError:
+            syn_names = None
+
         try:
             ahelp = find_metadata(name)
         except Exception as exc:
             print(" - ahelp metadata skipped as {}".format(exc))
             ahelp = None
 
-        xml = process_symbol(name, sym, ahelp=ahelp, debug=debug)
+        xml = process_symbol(name, sym, ahelp=ahelp,
+                             synonyms=syn_names,
+                             debug=debug)
         if xml is None:
             continue
 

@@ -1350,7 +1350,8 @@ def find_context(name, symbol=None):
     return 'sherpaish'
 
 
-def convert_docutils(name, doc, sig, symbol=None, metadata=None):
+def convert_docutils(name, doc, sig,
+                     symbol=None, metadata=None, synonyms=None):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
@@ -1367,13 +1368,22 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
     metadata : dict or None, optional
         The AHELP metadata for this file (the return value of
         parsers.ahelp.find_metadata).
+    synonmys : list of str or None
+        The synonums available for this symbol. It is expected that,
+        if given, the array has one element but do not require it
+        (but the array must not be empty if given).
 
     Returns
     -------
     ahelp
         The ahelp version of the documentation.
 
+    Notes
+    -----
+    Should synonyms be added to the SYNTAX block?
     """
+
+    assert synonyms is None or len(synonyms) > 0, synonyms
 
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
@@ -1465,6 +1475,13 @@ def convert_docutils(name, doc, sig, symbol=None, metadata=None):
 
     if xmlattrs['context'] == 'sherpaish':
         print(" - fall back context=sherpaish for {}".format(name))
+
+    # Add in any synonyms to the refkeywords (no check is made to
+    # see if they are already there).
+    #
+    if synonyms is not None:
+        xmlattrs['refkeywords'] = ' '.join(synonyms) + ' ' + \
+                                  xmlattrs['refkeywords']
 
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 

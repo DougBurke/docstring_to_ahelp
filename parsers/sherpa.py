@@ -14,6 +14,7 @@ To do
 
 """
 
+from collections import defaultdict
 from importlib import import_module
 from inspect import cleandoc, isclass, signature
 
@@ -32,7 +33,8 @@ from sphinx.ext.napoleon import Config
 from sphinx.ext.napoleon.docstring import NumpyDocstring
 
 
-__all__ = ("sym_to_rst", "sym_to_sig", "doc_to_rst", "unwanted")
+__all__ = ("sym_to_rst", "sym_to_sig", "doc_to_rst", "unwanted",
+           "find_synonyms")
 
 
 # Any special configuration for the parsing?
@@ -267,3 +269,45 @@ def syms_from_module(modulename):
         out['docstrings'].append(store)
 
     return out
+
+
+def find_synonyms():
+    """Return the synonyn mapping.
+
+    We have some routines available under different names - should all
+    be long and short forms such as covariance/covar but I can not
+    guarantee this - which we need to identify (i.e. don't create a
+    help file for the synonym but add it as a refkeyword. This *only*
+    looks at sherpa.astro.ui at this time.
+
+    Returns
+    -------
+    synonyms, originals : dict, dict
+        For synonyms the keys are the synonyms and the values are the
+        ahelp names, for originals the keys are the ahelp names and the
+        values are lists of synonyms (should only be 1 but just in case).
+
+    """
+
+    synonyms = {}
+    originals = defaultdict(list)
+
+    # Loop through all symbols just in case
+    #
+    for name in ui.__all__:
+
+        sym = getattr(ui, name)
+        try:
+            sname = sym.__name__
+        except AttributeError:
+            # For now skip these
+            continue
+
+        if sname == name:
+            continue
+
+        assert name not in synonyms, name
+        synonyms[name] = sname
+        originals[sname].append(name)
+
+    return synonyms, originals
