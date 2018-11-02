@@ -92,7 +92,7 @@ def convert(outdir, debug=False, restrict=None):
     # Restrict the symbols that get processed
     #
     names = sorted(list(ui.__all__))
-    for name in ui.__all__:
+    for name in names:
 
         if restrict is not None and name not in restrict:
             continue
