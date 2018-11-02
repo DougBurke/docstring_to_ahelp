@@ -707,7 +707,7 @@ def add_pars_to_syntax(syntax, fieldlist):
     """
 
     if syntax is None or fieldlist is None:
-        return None
+        return syntax
 
     partypes = []
     for par in fieldlist['params']:
@@ -727,6 +727,24 @@ def add_pars_to_syntax(syntax, fieldlist):
         assert len(ps) == 1
         ptxt = '{} - {}'.format(pname, ps[0].text)
         ElementTree.SubElement(syntax, 'LINE').text = ptxt
+
+    return syntax
+
+
+def add_synonyms_to_syntax(syntax, synonyms):
+    """Do we note any synonyms?
+
+    """
+
+    if syntax is None or synonyms is None:
+        return syntax
+
+    # Could handle multiple, but only expect 1 so note if this
+    # changes.
+    assert len(synonyms) == 1, synonyms
+
+    ElementTree.SubElement(syntax, 'LINE').text = ''
+    ElementTree.SubElement(syntax, 'LINE').text = 'Alias: ' + synonyms[0]
 
     return syntax
 
@@ -1419,11 +1437,8 @@ def convert_docutils(name, doc, sig,
     # This has been separated fro the extraction of the field list
     # to support experimentation.
     #
-    # QUS: should the parameters be added purely as an ADESC block
-    #      (or tacked on the end of the DESC block), or should
-    #      a summary be added tothe SYNTAX block too?
-    #
     params = extract_params(fieldlist1)
+    add_synonyms_to_syntax(syntax, synonyms)
     add_pars_to_syntax(syntax, fieldlist1)
 
     notes, nodes = find_notes(nodes)
