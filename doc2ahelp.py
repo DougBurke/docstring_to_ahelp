@@ -28,11 +28,13 @@ The output is to outdir/<key>.xml where <key> is based on the
 The script will over-write any existing file.
 
 TODO:
-  - should I replace trailing :: by :?
   - indicate new/missing files
   - create composite pages like 'ahelp models' 'ahelp xs'
 
   - how to handle the known problem cases?
+
+  - NEED TO ENSURE DO NOT OVERWRITE EXISTING AHELP FILES (THAT ARE
+    NOT SHERPA)
 
 """
 
@@ -93,6 +95,7 @@ def convert(outdir, debug=False, restrict=None):
     # Restrict the symbols that get processed
     #
     names = sorted(list(ui.__all__))
+    nproc = 0
     for name in names:
 
         if restrict is not None and name not in restrict:
@@ -115,8 +118,8 @@ def convert(outdir, debug=False, restrict=None):
             syn_names = None
 
         try:
-            ahelp = find_metadata(name)
-        except Exception as exc:
+            ahelp = find_metadata(name, synonyms=syn_names)
+        except ValueError as exc:
             print(" - ahelp metadata skipped as {}".format(exc))
             ahelp = None
 
@@ -129,6 +132,10 @@ def convert(outdir, debug=False, restrict=None):
         outfile = os.path.join(outdir, '{}.xml'.format(name))
         save_doc(outfile, xml)
         print("Created: {}".format(outfile))
+        nproc += 1
+
+    nskip = len(names) - nproc
+    print("\nProcessed {} files, skipped {}.".format(nproc, nskip))
 
     """
 

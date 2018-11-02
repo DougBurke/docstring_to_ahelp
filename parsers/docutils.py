@@ -1081,11 +1081,13 @@ def find_seealso(indoc):
     return out, indoc[1:]
 
 
-def find_notes(indoc):
+def find_notes(name, indoc):
     """Return the notes section, if present, and the remaining document.
 
     Parameters
     ----------
+    name : str
+        The name of the symbol being documented.
     indoc : list of nodes
         The document.
 
@@ -1127,16 +1129,33 @@ def find_notes(indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
-    unwanted = ['This model is only available when used with XSPEC 12.9.1 or later.',
-                'This model is only available when used with XSPEC 12.10.0 or later.']
+    # Actually, changing the "only in 12.10.0 or later" to a
+    # "new in CIAO 4.11" section. Unfortunately do not seem to have
+    # any like this.
+    #
+    def version(v):
+        return 'This model is only available when used with ' + \
+            'XSPEC {} or later.'.format(v)
+
+    v1291 = version('12.9.1')
+    v12100 = version('12.10.0')
 
     def wanted(n):
-        return n.astext() not in unwanted
+        return n.astext() != v1291
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
-        print(" - NOTE section is about XSPEC version")
+        # print(" - NOTE section is about XSPEC version")
         return None, rnodes
+
+    if len(lnodes) == 1 and lnodes[0].astext() == v12100:
+
+        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.11'})
+        para = ElementTree.SubElement(out, 'PARA')
+        para.text = 'The {} model '.format(name) + \
+                    '(added in XSPEC 12.10.0) is new in CIAO 4.11'
+
+        return out, rnodes
 
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
     for para in lnodes:
@@ -1414,6 +1433,84 @@ def find_context(name, symbol=None):
         if isinstance(symbol, ModelWrapper):
             return 'models'
 
+    # Hard code some values: the CIAO 4.10 contexts for Sherpa are
+    #
+    #   confidence
+    #   contrib
+    #   data
+    #   filtering
+    #   fitting
+    #   info
+    #   methods
+    #   modeling
+    #   models
+    #   plotting
+    #   psfs
+    #   saving
+    #   sherpa
+    #   statistics
+    #   utilities
+    #   visualization
+    #
+    # NOTE: some of these should get picked up from ahelp files
+    #       (ie this is unneeded)
+    #
+    if name in ['get_conf_results', 'get_conf_opt',
+                'get_covar_results', 'get_covar_opt',
+                'get_proj_results', 'get_proj_opt']:
+        return 'confidence'
+
+    if name.startswith('get_method'):
+        return 'methods'
+
+    if name in ['fit_bkg', 'get_fit_results']:
+        return 'fitting'
+
+    if name in ['ignore2d_image', 'notice2d_image']:
+        return 'filtering'
+
+    if name in ['get_bkg_model', 'get_bkg_source',
+                'get_model_pars', 'get_model_type',
+                'get_num_par_frozen', 'get_num_par_thawed',
+                'get_xsabund',
+                'get_xscosmo',
+                'get_xsxsect',
+                'get_xsxset',
+                'load_template_interpolator',
+                'load_xstable_model',
+                'get_xschatter', 'set_xschatter',
+                'set_bkg_full_model']:
+        return 'modeling'
+
+    if name in ['get_sampler_name', 'get_sampler_opt',
+                'get_stat_name']:
+        return 'statistics'
+
+    if name.startswith('plot_') or name.find('_plot') != -1:
+        return 'plotting'
+
+    if name.startswith('group') or \
+       name in ['create_arf', 'create_rmf',
+                'get_bkg_arf', 'get_bkg_rmf']:
+        return 'data'
+
+    if name in ['multinormal_pdf', 'multit_pdf']:
+        return 'utilities'
+
+    if name in ['get_data_contour', 'get_data_contour_prefs',
+                'get_data_image', 'get_fit_contour',
+                'get_kernel_contour', 'get_kernel_image',
+                'get_model_contour', 'get_model_contour_prefs',
+                'get_model_image',
+                'get_psf_contour', 'get_psf_image',
+                'get_ratio_contour', 'get_ratio_image',
+                'get_resid_contour', 'get_resid_image',
+                'get_source_contour', 'get_source_image']:
+        return 'visualization'
+
+    if name == 'get_functions':
+        return 'info'
+
     return 'sherpaish'
 
 
@@ -1490,7 +1587,7 @@ def convert_docutils(name, doc, sig,
     add_synonyms_to_syntax(syntax, synonyms)
     add_pars_to_syntax(syntax, fieldlist1)
 
-    notes, nodes = find_notes(nodes)
+    notes, nodes = find_notes(name, nodes)
     refs, nodes = find_references(nodes)
     examples, nodes = find_examples(nodes)
 
@@ -1518,15 +1615,12 @@ def convert_docutils(name, doc, sig,
     root = ElementTree.Element('cxchelptopics')
     outdoc = ElementTree.ElementTree(root)
 
-    # Use a "known but unused" context here, which indicates those
-    # symbols which do not have an existing ahelp file.
-    #
     xmlattrs = {'pkg': 'sherpa',
                 'key': name,
                 'refkeywords': ' '.join(refkeywords),
                 'seealsogroups': seealsotags,
                 'displayseealsogroups': displayseealsotags,
-                'context': find_context(name, symbol)
+                'context': None
                 }
 
     if metadata is not None:
@@ -1537,8 +1631,11 @@ def convert_docutils(name, doc, sig,
             assert k in xmlattrs
             xmlattrs[k] = v
 
-    if xmlattrs['context'] == 'sherpaish':
-        print(" - fall back context=sherpaish for {}".format(name))
+    if xmlattrs['context'] is None:
+        context = find_context(name, symbol)
+        xmlattrs['context'] = context
+        if context == 'sherpaish':
+            print(" - fall back context=sherpaish for {}".format(name))
 
     # Add in any synonyms to the refkeywords (no check is made to
     # see if they are already there).

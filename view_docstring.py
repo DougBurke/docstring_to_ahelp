@@ -61,8 +61,8 @@ def convert_and_view(infile):
     cts = open(infile, 'r').read()
 
     try:
-        ahelp = find_metadata(name)
-    except Exception as exc:
+        ahelp = find_metadata(name, synonyms=syn_names)
+    except ValueError as exc:
         print("SKIPPING AHELP METADATA: {}".format(exc))
         ahelp = None
 
