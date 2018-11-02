@@ -19,7 +19,7 @@ the Sherpa symbol.
 import os
 import tempfile
 
-from parsers.sherpa import doc_to_rst, sym_to_sig
+from parsers.sherpa import doc_to_rst, sym_to_sig, unwanted, find_synonyms
 from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
@@ -43,6 +43,15 @@ def convert_and_view(infile):
     name = basename.split('.')[0]
 
     sig, sym = sym_to_sig(name, sym=None)
+
+    if unwanted(name, sym):
+        print("Note: {} has been marked 'unwanted' by Doug".format(name))
+        return
+
+    synonyms, _ = find_synonyms()
+    if name in synonyms:
+        print("Note: {} is an alias for {}".format(name, synonyms[name]))
+        return
 
     cts = open(infile, 'r').read()
 
