@@ -1094,6 +1094,11 @@ def find_notes(indoc):
     notes, remaining : Element or None, list of nodes
         An ADESC block  and the remaining nodes.
 
+    Notes
+    -----
+    If this is a note to say that this model is only available with
+    XSPEC >= n then we strip it out, since the CIAO build has a known
+    version.
     """
 
     if len(indoc) == 0:
@@ -1112,6 +1117,26 @@ def find_notes(indoc):
     #
     lnodes, rnodes = splitWhile(lambda x: x.tagname != 'rubric',
                                 indoc[1:])
+
+    # Strip out any paragraph which matches:
+    #
+    # This model is only available when used with XSPEC 12.9.1 or later.
+    # This model is only available when used with XSPEC 12.10.0 or later.
+    #
+    # Note that (at present) there is no attempt to remove the
+    # sentence from a block of text (ie if there is additional material),
+    # since it looks like it doesn't happen (but it could).
+    #
+    unwanted = ['This model is only available when used with XSPEC 12.9.1 or later.',
+                'This model is only available when used with XSPEC 12.10.0 or later.']
+
+    def wanted(n):
+        return n.astext() not in unwanted
+
+    lnodes = list(filter(wanted, lnodes))
+    if len(lnodes) == 0:
+        print(" - NOTE section is about XSPEC version")
+        return None, rnodes
 
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
     for para in lnodes:
