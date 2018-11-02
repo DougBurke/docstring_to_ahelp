@@ -1054,7 +1054,31 @@ def find_seealso(indoc):
     else:
         raise ValueError("Unexpected see also contents:\n{}".format(node))
 
-    return names, indoc[1:]
+    # Strip out "," fragments.
+    #
+    names = [n for n in names if n.strip() != ',']
+
+    # Some names can contain the full module path, so clean them
+    # up, and then remove duplicates (shouldn't be any).
+    #
+    # I don't think there should be any see also symbol with a '.' in it
+    # for any other reason than it is part of a module path.
+    #
+    out = []
+    for n in names:
+        if n.startswith('sherpa.'):
+            n = n.split('.')[-1]
+        elif n.find('.') != -1:
+            print("ERROR: invalid seealso {}".format(names))
+            sys.exit(1)
+
+        if n not in out:
+            out.append(n)
+
+    if len(names) != len(out):
+        print(" - see also contains duplicates: {}".format(names))
+
+    return out, indoc[1:]
 
 
 def find_notes(indoc):
@@ -1336,7 +1360,7 @@ def create_seealso(name, seealso):
         return "{}{}".format(*toks)
 
     nlower = name.lower()
-    pairs = [convert(nlower, s.lower()) for s in seealso if s.strip() != ',']
+    pairs = [convert(nlower, s.lower()) for s in seealso]
 
     out = ' '.join(pairs)
     return out, ''
