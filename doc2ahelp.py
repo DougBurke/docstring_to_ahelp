@@ -66,7 +66,8 @@ def process_symbol(name, sym, ahelp=None, synonyms=None, debug=False):
         print("-- RestructuredText:\n{}".format(rst_doc))
 
     doc = convert_docutils(name, rst_doc, sig,
-                           symbol=sym, metadata=ahelp, synonyms=synonyms)
+                           symbol=sym, metadata=ahelp,
+                           synonyms=synonyms)
     return doc
 
 

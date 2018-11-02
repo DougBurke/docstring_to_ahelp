@@ -48,10 +48,15 @@ def convert_and_view(infile):
         print("Note: {} has been marked 'unwanted' by Doug".format(name))
         return
 
-    synonyms, _ = find_synonyms()
+    synonyms, originals = find_synonyms()
     if name in synonyms:
         print("Note: {} is an alias for {}".format(name, synonyms[name]))
         return
+
+    try:
+        syn_names = originals[name]
+    except KeyError:
+        syn_names = None
 
     cts = open(infile, 'r').read()
 
@@ -65,7 +70,8 @@ def convert_and_view(infile):
     rst_doc = parse_restructured(name, sherpa_doc)
     xmldoc = convert_docutils(name, rst_doc, sig,
                               symbol=sym,
-                              metadata=ahelp)
+                              metadata=ahelp,
+                              synonyms=syn_names)
 
     outfile = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
     save_doc(outfile.name, xmldoc)
