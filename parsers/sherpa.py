@@ -310,4 +310,7 @@ def find_synonyms():
         synonyms[name] = sname
         originals[sname].append(name)
 
-    return synonyms, originals
+    # Convert originals from a defaultdict to a normal dict, so
+    # can use 'key in originals' as a check.
+    #
+    return synonyms, dict(originals)
