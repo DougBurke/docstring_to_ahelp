@@ -6,6 +6,7 @@ Usage:
   ./doc2ahelp.py outdir [names]
      --debug
      --sxml
+     --models
 
 Aim:
 
@@ -47,6 +48,7 @@ TODO:
 
 import os
 
+from sherpa.ui.utils import ModelWrapper
 from sherpa.astro import ui
 
 from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted, find_synonyms
@@ -81,7 +83,8 @@ def process_symbol(name, sym, dtd='ahelp',
     return doc
 
 
-def convert(outdir, dtd='ahelp', debug=False, restrict=None):
+def convert(outdir, dtd='ahelp', modelsonly=False,
+            debug=False, restrict=None):
     """Convert the symbols.
 
     Parameters
@@ -90,6 +93,9 @@ def convert(outdir, dtd='ahelp', debug=False, restrict=None):
         The output directory, which must already exist.
     dtd : {'ahelp', 'sxml'}, optional
         The DTD to use for the output
+    modelsonly : bool, optional
+        Only process Sherpa models (this will subset any values given
+        in the restrict parameter if both are specified).
     debug : optional, boool
         If True then print out parsed versions of the symbols
         (expected to be used when restrict is not None but this
@@ -119,6 +125,11 @@ def convert(outdir, dtd='ahelp', debug=False, restrict=None):
         print("# {}".format(name))
 
         sym = getattr(ui, name)
+
+        if modelsonly and not isinstance(sym, ModelWrapper):
+            print(" - skipping as not a model")
+            continue
+
         if unwanted(name, sym):
             print(" - skipping as unwanted")
             continue
@@ -212,6 +223,8 @@ if __name__ == "__main__":
                         help="Print out parsed output")
     parser.add_argument("--sxml", action="store_true",
                         help="Use the SXML rather than AHELp dtd")
+    parser.add_argument("--models", action="store_true",
+                        help="Restrict to Sherpa models only")
 
     args = parser.parse_args(sys.argv[1:])
     restrict = args.names
@@ -220,6 +233,6 @@ if __name__ == "__main__":
 
     dtd = 'sxml' if args.sxml else 'ahelp'
 
-    convert(args.outdir, dtd=dtd,
+    convert(args.outdir, dtd=dtd, modelsonly=args.models,
             debug=args.debug,
             restrict=restrict)
