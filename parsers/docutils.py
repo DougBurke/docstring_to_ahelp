@@ -1,5 +1,5 @@
 """
-Convert docutils to ahelp DTD for Sherpa documentation.
+Convert docutils to ahelp or SXML DTD for Sherpa documentation.
 
 TODO:
   - references are just converted to <integer> in the text when something
@@ -1515,7 +1515,8 @@ def find_context(name, symbol=None):
 
 
 def convert_docutils(name, doc, sig,
-                     symbol=None, metadata=None, synonyms=None):
+                     symbol=None, metadata=None, synonyms=None,
+                     dtd='ahelp'):
     """Given the docutils documentation, convert to ahelp DTD.
 
     Parameters
@@ -1536,6 +1537,8 @@ def convert_docutils(name, doc, sig,
         The synonums available for this symbol. It is expected that,
         if given, the array has one element but do not require it
         (but the array must not be empty if given).
+    dtd : {'ahelp', 'sxml'}, optional
+        The DTD to use.
 
     Returns
     -------
@@ -1545,7 +1548,15 @@ def convert_docutils(name, doc, sig,
     Notes
     -----
     Should synonyms be added to the SYNTAX block?
+
+    At the moment there is limited support for the "sxml" DTD - i.e.
+    all that is changed is the top element; there is no attempt to
+    take advantage of the extra features that the cxcdocumentationpage
+    DTD affords.
     """
+
+    if dtd not in ['ahelp', 'sxml']:
+        raise ValueError("Unrecognized dtd value")
 
     assert synonyms is None or len(synonyms) > 0, synonyms
 
@@ -1612,7 +1623,15 @@ def convert_docutils(name, doc, sig,
 
     # Create the output
     #
-    root = ElementTree.Element('cxchelptopics')
+    rootname = None
+    if dtd == 'ahelp':
+        rootname = 'cxchelptopics'
+    elif dtd == 'sxml':
+        rootname = 'cxcdocumentationpage'
+    else:
+        raise RuntimeError('unknown dtd={}'.format(dtd))
+
+    root = ElementTree.Element(rootname)
     outdoc = ElementTree.ElementTree(root)
 
     xmlattrs = {'pkg': 'sherpa',

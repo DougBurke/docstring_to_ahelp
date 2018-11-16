@@ -5,12 +5,18 @@ Usage:
 
   ./doc2ahelp.py outdir [names]
      --debug
+     --sxml
 
 Aim:
 
 Extract the docstring information from Sherpa and create ahelp XML
 files for these symbols (functions, objects that we treat as
 strings/functions in Sherpa, meta data created from these symbols).
+
+The --sxml flag means that the output will use the "SXML" DTD
+instead of the AHELP one (at present this only changes the name of
+the root element, so there is no attempt to take advantage of the
+extra functionality provided by the SXML DTD).
 
 The script requires that a CIAO installation has been initialized,
 since it is used to access the Sherpa documentation from
@@ -29,7 +35,7 @@ The script will over-write any existing file.
 
 TODO:
   - indicate new/missing files
-  - create composite pages like 'ahelp models' 'ahelp xs'
+  - create composite pages like 'ahelp models' 'ahelp xs'?
 
   - how to handle the known problem cases?
 
@@ -50,7 +56,8 @@ from parsers.ahelp import find_metadata
 from helpers import save_doc
 
 
-def process_symbol(name, sym, ahelp=None, synonyms=None, debug=False):
+def process_symbol(name, sym, dtd='ahelp',
+                   ahelp=None, synonyms=None, debug=False):
 
     sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
@@ -67,17 +74,21 @@ def process_symbol(name, sym, ahelp=None, synonyms=None, debug=False):
     if debug:
         print("-- RestructuredText:\n{}".format(rst_doc))
 
-    doc = convert_docutils(name, rst_doc, sig,
+    doc = convert_docutils(name, rst_doc, sig, dtd=dtd,
                            symbol=sym, metadata=ahelp,
                            synonyms=synonyms)
     return doc
 
 
-def convert(outdir, debug=False, restrict=None):
+def convert(outdir, dtd='ahelp', debug=False, restrict=None):
     """Convert the symbols.
 
     Parameters
     ----------
+    outdir : string
+        The output directory, which must already exist.
+    dtd : {'ahelp', 'sxml'}, optional
+        The DTD to use for the output
     debug : optional, boool
         If True then print out parsed versions of the symbols
         (expected to be used when restrict is not None but this
@@ -89,6 +100,9 @@ def convert(outdir, debug=False, restrict=None):
     if not os.path.isdir(outdir):
         sys.stderr.write("ERROR: outdir={} does not exist\n".format(outdir))
         sys.exit(1)
+
+    if dtd not in ['ahelp', 'sxml']:
+        raise ValueError("Invalid dtd argument")
 
     synonyms, originals = find_synonyms()
 
@@ -123,7 +137,7 @@ def convert(outdir, debug=False, restrict=None):
             print(" - ahelp metadata skipped as {}".format(exc))
             ahelp = None
 
-        xml = process_symbol(name, sym, ahelp=ahelp,
+        xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
                              synonyms=syn_names,
                              debug=debug)
         if xml is None:
@@ -194,12 +208,16 @@ if __name__ == "__main__":
 
     parser.add_argument("--debug", action="store_true",
                         help="Print out parsed output")
+    parser.add_argument("--sxml", action="store_true",
+                        help="Use the SXML rather than AHELp dtd")
 
     args = parser.parse_args(sys.argv[1:])
     restrict = args.names
     if restrict is not None:
         restrict = stk.build(restrict)
 
-    convert(args.outdir,
+    dtd = 'sxml' if args.sxml else 'ahelp'
+
+    convert(args.outdir, dtd=dtd,
             debug=args.debug,
             restrict=restrict)
