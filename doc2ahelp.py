@@ -28,8 +28,9 @@ since it is used to access the Sherpa documentation from
 The ahelp files in the CIAO documentation are used to create the
 ahelp metadata.
 
-The output is to outdir/<key>.xml where <key> is based on the
-"ahelp key" (it should be the same but may be different).
+The output is to outdir/<key>.<suffix> where <key> is based on the
+"ahelp key" (it should be the same but may be different), and
+<suffix> is 'xml' or 'sxml' depending on the DTD.
 
 The script will over-write any existing file.
 
@@ -143,7 +144,8 @@ def convert(outdir, dtd='ahelp', debug=False, restrict=None):
         if xml is None:
             continue
 
-        outfile = os.path.join(outdir, '{}.xml'.format(name))
+        suffix = 'sxml' if dtd == 'sxml' else 'xml'
+        outfile = os.path.join(outdir, '{}.{}'.format(name, suffix))
         save_doc(outfile, xml)
         print("Created: {}".format(outfile))
         nproc += 1
