@@ -17,6 +17,7 @@ from docutils import nodes
 from xml.etree import ElementTree
 
 from sherpa.ui.utils import ModelWrapper
+from sherpa.astro.xspec import XSAdditiveModel, XSMultiplicativeModel
 
 
 def splitWhile(pred, xs):
@@ -1570,6 +1571,27 @@ def convert_docutils(name, doc, sig,
     syntax, nodes = find_syntax(name, sig, nodes)
     synopsis, refkeywords, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
+
+    # For XSPEC models, add a note about additive or multiplicative to
+    # the SYNTAX block (could go in the description but let's try
+    # here for now).
+    #
+    if isinstance(symbol, ModelWrapper) and \
+       issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel)):
+        assert syntax is not None
+
+        ElementTree.SubElement(syntax, 'LINE').text = ''
+
+        mline = 'The {} model is '.format(name)
+        if issubclass(symbol.modeltype, XSAdditiveModel):
+            mline += 'an additive'
+        elif issubclass(symbol.modeltype, XSMultiplicativeModel):
+            mline += 'a multiplivative'
+        else:
+            raise RuntimeError("Unexpected XSPEC model component: {}".format(name))
+
+        mline += ' model component.'
+        ElementTree.SubElement(syntax, 'LINE').text = mline
 
     # Can have parameters and then a "raises" section, or just one,
     # or neither. Really they should both be before the See Also
