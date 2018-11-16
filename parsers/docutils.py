@@ -817,7 +817,7 @@ def find_synopsis(indoc):
     def clean(v):
         # assuming only have one of these conditions to process, so the
         # order of operations does not matter
-        for c in [',', '.', '"', "'"]:
+        for c in [',', '.', ':', '"', "'"]:
             if v.endswith(c):
                 v = v[:-1]
             if v.startswith(c):
@@ -825,8 +825,10 @@ def find_synopsis(indoc):
 
         return v
 
+    # return a sorted list of keys to make comparisons easier
+    #
     keys = [clean(k) for k in syn.lower().split()]
-    keywords = list(set(keys))
+    keywords = sorted(list(set(keys)))
 
     out = ElementTree.Element('SYNOPSIS')
     out.text = syn
@@ -1648,7 +1650,18 @@ def convert_docutils(name, doc, sig,
                 continue
 
             assert k in xmlattrs
-            xmlattrs[k] = v
+
+            # special case refkeywords to append to the existing
+            # set
+            #
+            if k == 'refkeywords':
+                # repeats aren't really a problem but clean them up
+                # anyway
+                newkeys = (xmlattrs[k] + ' ' + v).split()
+                newkeys = sorted(list(set(newkeys)))
+                xmlattrs[k] = ' '.join(newkeys)
+            else:
+                xmlattrs[k] = v
 
     if xmlattrs['context'] is None:
         context = find_context(name, symbol)
