@@ -1742,7 +1742,7 @@ def convert_docutils(name, doc, sig,
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
     para.text = 'See the '
-    attrs = {'link': 'http://cxc.harvard.edu/sherpa/bugs/'}
+    attrs = {'link': 'https://cxc.harvard.edu/sherpa/bugs/'}
     link = ElementTree.SubElement(para, 'HREF', attrs)
     link.text = 'bugs pages on the Sherpa website'
     link.tail = ' for an up-to-date listing of known bugs.'
