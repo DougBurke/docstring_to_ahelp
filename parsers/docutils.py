@@ -955,12 +955,21 @@ def find_fieldlist(indoc):
         ntoks = len(toks)
         assert t0 in ['param', 'ivar', 'type', 'rtype', 'raises', 'returns'], name
         if t0 == 'raises':
-            assert ntoks == 1, name
-            raises.append(body)
+            # Has there been a change in how the raises section is
+            # encoded, or is it more that when I originally wrote
+            # this I had no examples which returned several tokens?
+            #
+            # It looks like we don't do anything with this at the moment
+            # anyway.
+            if ntoks == 1:
+                raises.append(body)
+            else:
+                raises.append({'tokens': toks[1:], 'body': body})
+
             continue
 
         elif t0 in ['returns', 'rtype']:
-            assert ntoks == 1, name
+            assert ntoks == 1, (toks, name)
             returns.append((t0, body))
             continue
 
@@ -1142,21 +1151,23 @@ def find_notes(name, indoc):
 
     v1291 = version('12.9.1')
     v12100 = version('12.10.0')
+    v12101 = version('12.10.1')
 
     def wanted(n):
-        return n.astext() != v1291
+        txt = n.astext()
+        return n.astext() not in [v1291, v12100]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
 
-    if len(lnodes) == 1 and lnodes[0].astext() == v12100:
+    if len(lnodes) == 1 and lnodes[0].astext() == v12101:
 
-        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.11'})
+        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.12'})
         para = ElementTree.SubElement(out, 'PARA')
         para.text = 'The {} model '.format(name) + \
-                    '(added in XSPEC 12.10.0) is new in CIAO 4.11'
+                    '(added in XSPEC 12.10.1) is new in CIAO 4.12'
 
         return out, rnodes
 
@@ -1586,7 +1597,7 @@ def convert_docutils(name, doc, sig,
         if issubclass(symbol.modeltype, XSAdditiveModel):
             mline += 'an additive'
         elif issubclass(symbol.modeltype, XSMultiplicativeModel):
-            mline += 'a multiplivative'
+            mline += 'a multiplicative'
         else:
             raise RuntimeError("Unexpected XSPEC model component: {}".format(name))
 
@@ -1604,7 +1615,9 @@ def convert_docutils(name, doc, sig,
     # to skip fieldlist2 if set, but should probably have some
     # safety check to warn if it shouldn't be (i.e. contents are
     # not a raises block), and we also need to remove raises
-    # from fieldlist1, as this isn't wanted for ahelp
+    # from fieldlist1, as this isn't wanted for ahelp.
+    #
+    # ^^^ The paragraph above needs reviewing for CIAO 4.12
     #
     fieldlist1, nodes = find_fieldlist(nodes)
 
@@ -1714,8 +1727,8 @@ def convert_docutils(name, doc, sig,
         xspec = ElementTree.SubElement(entry, 'ADESC',
                                        {'title': 'XSPEC version'})
         xpara = ElementTree.SubElement(xspec, 'PARA')
-        xpara.text = 'CIAO 4.11 comes with support for version ' + \
-                     '12.10.0e of the XSPEC models. This can be ' + \
+        xpara.text = 'CIAO 4.12 comes with support for version ' + \
+                     '12.10.1n of the XSPEC models. This can be ' + \
                      'checked with the following:'
 
         cstr = "% python -c 'from sherpa.astro import xspec; " + \
@@ -1724,7 +1737,7 @@ def convert_docutils(name, doc, sig,
         xpara2 = ElementTree.SubElement(xspec, 'PARA')
         xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
         ElementTree.SubElement(xsyn, 'LINE').text = cstr
-        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.0e'
+        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.1n'
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
@@ -1734,6 +1747,6 @@ def convert_docutils(name, doc, sig,
     link.text = 'bugs pages on the Sherpa website'
     link.tail = ' for an up-to-date listing of known bugs.'
 
-    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2018'
+    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2019'
 
     return outdoc
