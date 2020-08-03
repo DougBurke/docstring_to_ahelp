@@ -1747,6 +1747,6 @@ def convert_docutils(name, doc, sig,
     link.text = 'bugs pages on the Sherpa website'
     link.tail = ' for an up-to-date listing of known bugs.'
 
-    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2019'
+    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2020'
 
     return outdoc
