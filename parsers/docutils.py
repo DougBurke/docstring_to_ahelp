@@ -1118,6 +1118,7 @@ def find_notes(name, indoc):
     If this is a note to say that this model is only available with
     XSPEC >= n then we strip it out, since the CIAO build has a known
     version.
+
     """
 
     if len(indoc) == 0:
@@ -1132,7 +1133,7 @@ def find_notes(name, indoc):
     if node.astext().strip() != 'Notes':
         return None, indoc
 
-    # look for the next rubric
+    # look for the next rubric that is not a 'Notes' section
     #
     lnodes, rnodes = splitWhile(lambda x: x.tagname != 'rubric',
                                 indoc[1:])
@@ -1683,6 +1684,14 @@ def convert_docutils(name, doc, sig,
     add_pars_to_syntax(syntax, fieldlist1)
 
     notes, nodes = find_notes(name, nodes)
+
+    # hack to merge notes if duplicate (seen in testing; should be fixed
+    # in the docstring)
+    #
+    notes2, nodes = find_notes(name, nodes)
+    if notes2 is not None:
+        print(" - error, multiple NOTES sections")
+
     refs, nodes = find_references(nodes)
     examples, nodes = find_examples(nodes)
 
@@ -1761,7 +1770,7 @@ def convert_docutils(name, doc, sig,
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
     for n in [synopsis, syntax, desc, examples, params,
-              warnings, notes, refs]:
+              warnings, notes, notes2, refs]:
         if n is None:
             continue
 
