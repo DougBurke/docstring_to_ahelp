@@ -1699,6 +1699,11 @@ def convert_docutils(name, doc, sig,
     #
     examples = augment_examples(examples, symbol)
 
+    if refs is None:
+        refs, nodes = find_references(nodes)
+        if refs is not None:
+            print(" - References after EXAMPLES")
+
     # assert nodes == [], nodes
     if nodes != []:
         sys.stderr.write(" - ignoring trailing:\n{}\n".format(nodes))
