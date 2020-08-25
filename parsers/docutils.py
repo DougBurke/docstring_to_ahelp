@@ -1180,6 +1180,40 @@ def find_notes(name, indoc):
     return out, rnodes
 
 
+def find_warning(indoc):
+    """Extract a warning section, if it exists.
+
+    Parameters
+    ----------
+    indoc : list of nodes
+        The document.
+
+    Returns
+    -------
+    warning, remaining : Element or None, list of nodes
+        An DESC block and the remaining nodes.
+
+    """
+
+    if len(indoc) == 0:
+        return None, indoc
+
+    node = indoc[0]
+    if node.tagname != 'warning':
+        return None, indoc
+
+    assert len(node.children) == 1
+
+    # This probably needs to handle more-complocated structures,
+    # but stay simple for now.
+    #
+    out = ElementTree.Element("ADESC", {'title': 'Warning'})
+    cts = ElementTree.SubElement(out, 'PARA')
+    cts.text = astext(node.children[0])
+
+    return out, indoc[1:]
+
+
 def find_references(indoc):
     """Return the references section, if present, and the remaining document.
 
@@ -1587,6 +1621,7 @@ def convert_docutils(name, doc, sig,
     # the SYNTAX block (could go in the description but let's try
     # here for now).
     #
+    # TODO: XSConvolutionKernel/Model
     if isinstance(symbol, ModelWrapper) and \
        issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel)):
         assert syntax is not None
@@ -1620,6 +1655,8 @@ def convert_docutils(name, doc, sig,
     # ^^^ The paragraph above needs reviewing for CIAO 4.12
     #
     fieldlist1, nodes = find_fieldlist(nodes)
+
+    warnings, nodes = find_warning(nodes)
 
     seealso, nodes = find_seealso(nodes)
 
@@ -1713,7 +1750,8 @@ def convert_docutils(name, doc, sig,
 
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
-    for n in [synopsis, syntax, desc, examples, params, notes, refs]:
+    for n in [synopsis, syntax, desc, examples, params,
+              warnings, notes, refs]:
         if n is None:
             continue
 
