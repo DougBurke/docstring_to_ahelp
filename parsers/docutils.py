@@ -478,10 +478,15 @@ def add_table_row(out, el):
         xrow = ElementTree.SubElement(out, 'ROW')
         for entry in row:
             assert entry.tagname == 'entry'
-            assert len(entry) == 1
-            assert entry[0].tagname == 'paragraph'
+            # an entry can be empty
+            if len(entry) == 0:
+                txt = ''
+            else:
+                assert len(entry) == 1, len(entry)
+                assert entry[0].tagname == 'paragraph'
+                txt = entry.astext()
 
-            ElementTree.SubElement(xrow, 'DATA').text = entry.astext()
+            ElementTree.SubElement(xrow, 'DATA').text = txt
 
 
 def convert_table(tbl):
