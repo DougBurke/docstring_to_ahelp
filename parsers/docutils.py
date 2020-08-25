@@ -1286,8 +1286,13 @@ def find_examples(indoc):
     if node.tagname != 'rubric':
         return None, indoc
 
-    if node.astext().strip() != 'Examples':
+    # Support Example as well as Examples
+    txt = node.astext().strip()
+    if txt not in ['Examples', 'Example']:
         return None, indoc
+
+    if txt == 'Example':
+        print(" - has an Example, not Examples, block")
 
     # look for the next rubric
     #
