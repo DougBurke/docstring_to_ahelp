@@ -1683,6 +1683,13 @@ def convert_docutils(name, doc, sig,
     add_synonyms_to_syntax(syntax, synonyms)
     add_pars_to_syntax(syntax, fieldlist1)
 
+    # support see-also here
+    #
+    if seealso is None:
+        seealso, nodes = find_seealso(nodes)
+        if seealso is not None:
+            print(" - seealso is in wrong place")
+
     notes, nodes = find_notes(name, nodes)
 
     # hack to merge notes if duplicate (seen in testing; should be fixed
