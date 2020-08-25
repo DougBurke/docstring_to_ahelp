@@ -149,9 +149,14 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
             print(" - ahelp metadata skipped as {}".format(exc))
             ahelp = None
 
-        xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
-                             synonyms=syn_names,
-                             debug=debug)
+        try:
+            xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
+                                 synonyms=syn_names,
+                                 debug=debug)
+        except Exception as exc:
+            print(" - ERROR PROCESSING: {}".format(exc))
+            continue
+
         if xml is None:
             continue
 
