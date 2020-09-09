@@ -1161,27 +1161,39 @@ def find_notes(name, indoc):
     v1291 = version('12.9.1')
     v12100 = version('12.10.0')
     v12101 = version('12.10.1')
+    v12110 = version('12.11.0')  # there's no 12.11.1 only models
 
     def wanted(n):
         txt = n.astext()
-        return n.astext() not in [v1291, v12100]
+        return n.astext() not in [v1291, v12100, v12101]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
 
-    if len(lnodes) == 1 and lnodes[0].astext() == v12101:
+    # CIAO 4.12 used 12.10.1
+    # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
+    #
+    # Identify if we have a <this version is new> line.
+    #
+    has_version = False
+    for para in lnodes:
+        has_version |= para.astext() == v12110
 
-        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.12'})
+    if has_version:
+        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.13'})
         para = ElementTree.SubElement(out, 'PARA')
         para.text = 'The {} model '.format(name) + \
-                    '(added in XSPEC 12.10.1) is new in CIAO 4.12'
+                    '(added in XSPEC 12.11.0) is new in CIAO 4.13.'
 
-        return out, rnodes
+    else:
+        out = ElementTree.Element("ADESC", {'title': 'Notes'})
 
-    out = ElementTree.Element("ADESC", {'title': 'Notes'})
     for para in lnodes:
+        if para.astext() == v12110:
+            continue
+
         for b in make_para_blocks(para):
             out.append(b)
 
@@ -1799,8 +1811,8 @@ def convert_docutils(name, doc, sig,
         xspec = ElementTree.SubElement(entry, 'ADESC',
                                        {'title': 'XSPEC version'})
         xpara = ElementTree.SubElement(xspec, 'PARA')
-        xpara.text = 'CIAO 4.12 comes with support for version ' + \
-                     '12.10.1n of the XSPEC models. This can be ' + \
+        xpara.text = 'CIAO 4.13 comes with support for version ' + \
+                     '12.11.1 of the XSPEC models. This can be ' + \
                      'checked with the following:'
 
         cstr = "% python -c 'from sherpa.astro import xspec; " + \
@@ -1809,7 +1821,7 @@ def convert_docutils(name, doc, sig,
         xpara2 = ElementTree.SubElement(xspec, 'PARA')
         xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
         ElementTree.SubElement(xsyn, 'LINE').text = cstr
-        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.1n'
+        ElementTree.SubElement(xsyn, 'LINE').text = '12.11.1'
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
