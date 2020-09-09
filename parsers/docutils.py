@@ -17,7 +17,7 @@ from docutils import nodes
 from xml.etree import ElementTree
 
 from sherpa.ui.utils import ModelWrapper
-from sherpa.astro.xspec import XSAdditiveModel, XSMultiplicativeModel
+from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
 def splitWhile(pred, xs):
@@ -1655,9 +1655,8 @@ def convert_docutils(name, doc, sig,
     # the SYNTAX block (could go in the description but let's try
     # here for now).
     #
-    # TODO: XSConvolutionKernel/Model
     if isinstance(symbol, ModelWrapper) and \
-       issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel)):
+       issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel)):
         assert syntax is not None
 
         ElementTree.SubElement(syntax, 'LINE').text = ''
@@ -1667,6 +1666,8 @@ def convert_docutils(name, doc, sig,
             mline += 'an additive'
         elif issubclass(symbol.modeltype, XSMultiplicativeModel):
             mline += 'a multiplicative'
+        elif issubclass(symbol.modeltype, XSConvolutionKernel):
+            mline += 'a convolution'
         else:
             raise RuntimeError("Unexpected XSPEC model component: {}".format(name))
 
