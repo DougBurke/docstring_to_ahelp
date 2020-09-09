@@ -874,7 +874,10 @@ def find_desc(indoc):
         for b in make_para_blocks(para):
             out.append(b)
 
-    assert len(out) > 0
+    # assert len(out) > 0
+    if len(out) == 0:
+        print("NOTE: no text in DESC block")
+
     return out, rnodes
 
 

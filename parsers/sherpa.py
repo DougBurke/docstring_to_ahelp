@@ -206,9 +206,11 @@ def unwanted(name, sym):
     if name.startswith('_'):
         return True
 
+    """
     if name in ['create_arf']:
         print("  - skipping {} as a known problem case".format(name))
         return True
+    """
 
     if isclass(sym) and issubclass(sym, BaseData):
         return True
@@ -251,11 +253,12 @@ def syms_from_module(modulename):
            'file': module.__file__,
            'docstrings': []}
 
-    # Ideally module.__all__ would be a unique list, but this is
-    # not true at the time of writing for sherpa.astro.ui, which
-    # contains 'erf' twice.
+    # There was a time sherpa.astro.ui failed this test as erf[c?]
+    # was repeated.
     #
-    for name in sorted(set(module.__all__)):
+    assert len(module.__all__) == len(set(module.__all__))
+
+    for name in sorted(module.__all__):
 
         sym = getattr(module, name)
         if unwanted(name, sym):
