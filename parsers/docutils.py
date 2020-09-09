@@ -618,7 +618,7 @@ def make_para_blocks(para):
 
     Returns
     -------
-    el, flag : list of ElementTree.Element
+    el : list of ElementTree.Element
         The PARA block(s), which can be empty.
 
     Notes
@@ -1291,6 +1291,11 @@ def find_examples(indoc):
     examples, remaining : Element or None, list of nodes
         A QEXAMPLELIST block and the remaining nodes.
 
+    Notes
+    -----
+    The base is text + examples. There's some support to handle multiple
+    text + example blocks, but it is very hacky.
+
     """
 
     if len(indoc) == 0:
@@ -1337,7 +1342,10 @@ def find_examples(indoc):
                         'block_quote', 'literal_block'], para
 
         if desc is None:
-            if name == 'paragraph' and len(out) > 1 and \
+            # Can we identify a sentence that is actually
+            # part of the previous example?
+            #
+            if name == 'paragraph' and len(out) >= 1 and \
                para.astext()[0].islower():
                 qex = out[-1]
                 assert qex.tag == 'QEXAMPLE'
