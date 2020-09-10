@@ -1520,8 +1520,9 @@ def extract_params(fieldinfo):
     #
     rvals = [r[1] for r in retinfo if r[0] == 'returns']
     assert len(rvals) == 1, retinfo
+    assert rvals[0].tagname == 'field_body'
 
-    adesc.append(convert_para(rvals[0]))
+    adesc.append(convert_field_body(rvals[0]))
 
     return adesc
 
