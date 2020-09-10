@@ -440,7 +440,7 @@ def convert_bullet_list(para):
     return convert_list_items(para)
 
 
-def convert_definition_list(para):
+def convert_definition_list_as_paras(para):
     """Create a definition list.
 
     This returns a set of paragraphs, with titles being the
@@ -478,6 +478,64 @@ def convert_definition_list(para):
         out.append(xml)
 
     return out
+
+
+def convert_definition_list_as_table(para):
+    """Convert a definition list into a table.
+
+    This requires a simple structure: each definition can only
+    contain a single paragraph and doesn't contain any complex
+    markup.
+
+    Parameters
+    ----------
+    para : docutils.nodes.enumerated_list
+        The contents to add.
+
+    Returns
+    -------
+    out : list of ElementTree.Element
+
+    """
+
+    assert para.tagname == 'definition_list', para
+
+    out = ElementTree.Element('TABLE')
+
+    # add a fake first row to set up the headers
+    #
+    row0 = ElementTree.SubElement(out, 'ROW')
+    ElementTree.SubElement(row0, 'DATA').text = 'Item'
+    ElementTree.SubElement(row0, 'DATA').text = 'Definition'
+
+    for el in para:
+        assert el.tagname == 'definition_list_item', el
+        assert el[0].tagname == 'term', el
+        assert el[0][0].tagname in ['literal', '#text'], el
+        assert el[1].tagname == 'definition', el
+        assert el[1][0].tagname == 'paragraph', el
+        assert len(el[1]) == 1, el
+
+        row = ElementTree.SubElement(out, 'ROW')
+        ElementTree.SubElement(row, 'DATA').text = el[0].astext()
+
+        # It would be nice if we could error out if el[1]
+        # contained any markup (well. markup we can't easily
+        # convert).
+        #
+        ElementTree.SubElement(row, 'DATA').text = astext(el[1][0])
+
+    return [out]
+
+
+def convert_definition_list(para):
+    """How do we convert a definition list?
+
+    For now use a table.
+    """
+
+    dbg('CHECK CONVERSION OF DL', info='TODO')
+    return convert_definition_list_as_table(para)
 
 
 def convert_definition(para):
