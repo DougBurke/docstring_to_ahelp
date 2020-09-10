@@ -1557,6 +1557,9 @@ def find_examples(indoc):
 def extract_params(fieldinfo):
     """Extract the parameter information from a fieldlist.
 
+    We used to use paragraphs, but now use a table for the
+    parameter/attribute values.
+
     """
 
     if fieldinfo is None:
@@ -1617,28 +1620,36 @@ def extract_params(fieldinfo):
     else:
         p.text = 'The {}s for this {} are:'.format(value, name)
 
+    tbl = ElementTree.SubElement(adesc, 'TABLE')
+
+    # add a fake first row to set up the headers
+    #
+    row0 = ElementTree.SubElement(tbl, 'ROW')
+    ElementTree.SubElement(row0, 'DATA').text = value.capitalize()
+    ElementTree.SubElement(row0, 'DATA').text = 'Definition'
+
     for par in parinfo:
+
+        row = ElementTree.SubElement(tbl, 'ROW')
+        ElementTree.SubElement(row, 'DATA').text = par['name']
 
         # Keys are name, param, and type. At present type is not used.
         #          name, ivar
         #
+
         if 'param' in par:
-            ps = make_para_blocks(par['param'])
-            assert len(ps) > 0
-            ps[0].set('title', par['name'])
+            block = convert_field_body(par['param'])
+            text = block.text
 
         elif 'ivar' in par:
-            ps = make_para_blocks(par['ivar'])
-            assert len(ps) > 0
-            ps[0].set('title', par['name'])
+            block = convert_field_body(par['ivar'])
+            text = block.text
 
         else:
             # Not description, so an empty paragraph.
-            p = ElementTree.SubElement(adesc, 'PARA', {'title': par['name']})
-            ps = [p]
+            text = ''
 
-        for p in ps:
-            adesc.append(p)
+        ElementTree.SubElement(row, 'DATA').text = text
 
     if return_value is None:
         return adesc
