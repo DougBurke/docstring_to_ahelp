@@ -20,6 +20,10 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
+def dbg(msg, info='DBG'):
+    sys.stderr.write("{}: {}\n".format(info, msg))
+
+
 def convert_version_number(v):
     """Convert from Sherpa to CIAO numbering
 
@@ -141,7 +145,7 @@ def astext(node):
     """
 
     if node.tagname == 'system_message':
-        sys.stderr.write(" - skipping message: {}\n".format(node))
+        dbg("- skipping message: {}".format(node))
         return ''
 
     if node.tagname == '#text':
@@ -252,7 +256,8 @@ def convert_para(para):
     # reported = set([])
 
     if para.tagname != "paragraph":
-        print("  - paragraph handling {}".format(para.tagname))
+        msg = "- paragraph handling {}".format(para.tagname)
+        dbg(msg)
 
     for n in para:
         text.append(astext(n))
@@ -718,7 +723,8 @@ def make_para_blocks(para):
     """
 
     if para.tagname == 'system_message':
-        print(" - skipping message: {}".format(para.astext()))
+        msg = "- skipping message: {}".format(para.astext())
+        dbg(msg)
         return []
 
     # TODO: convert all the "conversion" routines to return a list
@@ -784,7 +790,7 @@ def find_syntax(name, sig, indoc):
 
     assert txt.endswith(')'), txt
 
-    print("  - using SYNTAX block from file")
+    dbg("- using SYNTAX block from file")
     out = make_syntax_block([txt])
     return out, indoc[1:]
 
@@ -958,7 +964,7 @@ def find_desc(indoc):
 
     # assert len(out) > 0
     if len(out) == 0:
-        print("NOTE: no text in DESC block")
+        dbg("no text in DESC block", info='NOTE')
 
     return out, rnodes
 
@@ -1171,14 +1177,15 @@ def find_seealso(indoc):
         if n.startswith('sherpa.'):
             n = n.split('.')[-1]
         elif n.find('.') != -1:
-            print("ERROR: invalid seealso {}".format(names))
+            sys.stderr.write("ERROR: invalid seealso {}\n".format(names))
             sys.exit(1)
 
         if n not in out:
             out.append(n)
 
     if len(names) != len(out):
-        print(" - see also contains duplicates: {}".format(names))
+        msg = "- see also contains duplicates: {}".format(names)
+        dbg(msg)
 
     return out, indoc[1:]
 
@@ -1395,7 +1402,8 @@ def find_examples(indoc):
         return None, indoc
 
     if txt == 'Example':
-        print(" - has an Example, not Examples, block")
+        msg = " - has an Example, not Examples, block"
+        dbg(msg)
 
     # look for the next rubric
     #
@@ -1466,7 +1474,8 @@ def extract_params(fieldinfo):
     nret = len(retinfo)
     if nparams == 0 and nret == 0:
         assert len(fieldinfo['raises']) != 0
-        print(" - looks like only has a raises block, so skipping")
+        msg = " - looks like only has a raises block, so skipping"
+        dbg(msg)
         return None
 
     if is_attrs:
@@ -1555,7 +1564,8 @@ def create_seealso(name, seealso):
     """
 
     if seealso is None:
-        print("  - {} has no SEE ALSO".format(name))
+        msg = "- {} has no SEE ALSO".format(name)
+        dbg(msg)
         return '', ''
 
     # remove case and sort lexicographically.
@@ -1781,7 +1791,7 @@ def convert_docutils(name, doc, sig,
     fieldlist2, nodes = find_fieldlist(nodes)
 
     if fieldlist2 is not None:
-        sys.stderr.write(" - ignoring section fieldlist\n")
+        dbg("- ignoring section fieldlist")
 
     # This has been separated fro the extraction of the field list
     # to support experimentation.
@@ -1795,7 +1805,8 @@ def convert_docutils(name, doc, sig,
     if seealso is None:
         seealso, nodes = find_seealso(nodes)
         if seealso is not None:
-            print(" - seealso is in wrong place")
+            msg = "- seealso is in wrong place"
+            dbg(msg)
 
     notes, nodes = find_notes(name, nodes)
 
@@ -1804,7 +1815,8 @@ def convert_docutils(name, doc, sig,
     #
     notes2, nodes = find_notes(name, nodes)
     if notes2 is not None:
-        print(" - error, multiple NOTES sections")
+        msg = "multiple NOTES sections"
+        dbg(msg, info='ERROR')
 
     refs, nodes = find_references(nodes)
     examples, nodes = find_examples(nodes)
@@ -1816,18 +1828,19 @@ def convert_docutils(name, doc, sig,
     if refs is None:
         refs, nodes = find_references(nodes)
         if refs is not None:
-            print(" - References after EXAMPLES")
+            msg = "References after EXAMPLES"
+            dbg(msg)
 
     # assert nodes == [], nodes
     if nodes != []:
-        sys.stderr.write(" - ignoring trailing:\n{}\n".format(nodes))
+        dbg("ignoring trailing:\n{}".format(nodes), info='WARN')
         return nodes
 
     # Augment the blocks
     #
     if syntax is None:
         # create the syntax block
-        sys.stderr.write("TODO: does {} need a SYNTAX block?\n".format(name))
+        dbg("does {} need a SYNTAX block?".format(name), info='TODO')
 
     # Try and come up with an automated 'See Also' solution
     #
@@ -1877,7 +1890,7 @@ def convert_docutils(name, doc, sig,
         context = find_context(name, symbol)
         xmlattrs['context'] = context
         if context == 'sherpaish':
-            print(" - fall back context=sherpaish for {}".format(name))
+            dbg("- fall back context=sherpaish for {}".format(name))
 
     # Add in any synonyms to the refkeywords (no check is made to
     # see if they are already there).
