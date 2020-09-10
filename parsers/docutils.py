@@ -1571,8 +1571,8 @@ def extract_params(fieldinfo):
     nret = len(retinfo)
     if nparams == 0 and nret == 0:
         assert len(fieldinfo['raises']) != 0
-        msg = " - looks like only has a raises block, so skipping"
-        dbg(msg)
+        # msg = " - looks like only has a raises block, so skipping"
+        # dbg(msg)
         return None
 
     if is_attrs:
@@ -1779,7 +1779,9 @@ def find_context(name, symbol=None):
 
     if name.startswith('group') or \
        name in ['create_arf', 'create_rmf',
-                'get_bkg_arf', 'get_bkg_rmf']:
+                'get_bkg_arf', 'get_bkg_rmf',
+                'load_ascii_with_errors',
+                'resample_data']:
         return 'data'
 
     if name in ['multinormal_pdf', 'multit_pdf']:
@@ -1796,8 +1798,12 @@ def find_context(name, symbol=None):
                 'get_source_contour', 'get_source_image']:
         return 'visualization'
 
-    if name == 'get_functions':
+    if name in ['get_functions', 'list_pileup_model_ids',
+                'list_psf_ids']:
         return 'info'
+
+    if name == 'delete_pileup_model':
+        return 'model'
 
     return 'sherpaish'
 
