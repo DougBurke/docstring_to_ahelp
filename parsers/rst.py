@@ -24,6 +24,8 @@ from docutils.parsers.rst.directives.admonitions import BaseAdmonition
 
 from sphinx import addnodes
 
+# import sphinx.domains.python
+#
 
 '''
 # Try and hack in support for the Sphinx-provided roles and directives
@@ -77,6 +79,31 @@ class SeeAlso(BaseAdmonition):
     node_class = addnodes.seealso
 
 
+# Unlike sphinx treat version changed and added separately.
+# Started with sphinx.domains.changeset.VersionChange
+# but simplified greatly.
+#
+class versionnode(addnodes.versionmodified):
+    """Not really needed but helps documention"""
+
+class versionchanged(versionnode):
+    """versionchanged"""
+
+
+class versionadded(versionnode):
+    """versionadded"""
+
+
+class VersionChanged(BaseAdmonition):
+    """versionchanged"""
+    node_class = versionchanged
+
+
+class VersionAdded(BaseAdmonition):
+    """versionadded"""
+    node_class = versionadded
+
+
 # The use of register_generic_role didn't seem to work, so
 # do it manually.
 #
@@ -101,8 +128,8 @@ def exc_role(role, rawtext, text, lineno, inliner,
 # Register the helper code in this module
 #
 rst.directives.register_directive('seealso', SeeAlso)
-
-# rst.directives.register_directive('attribute', SeeAlso)
+rst.directives.register_directive('versionadded', VersionAdded)
+rst.directives.register_directive('versionchanged', VersionChanged)
 
 # can not seem to find these in Sphinx
 #

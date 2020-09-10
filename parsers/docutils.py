@@ -20,6 +20,37 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
+def convert_version_number(v):
+    """Convert from Sherpa to CIAO numbering
+
+    Not all Sherpa releases map to a CIAO release.
+
+    CIAO releases:
+       4.12.1
+       4.12
+       4.11
+       4.10
+       4.9
+       4.8.2 / 4.8.1
+       4.8
+
+    """
+
+    toks = v.split('.')
+    assert len(toks) == 3, v
+    assert toks[0] == '4', v
+
+    if toks[2] == '0':
+        # Generic naming, drop the .0
+        return '{}.{}'.format(toks[0], toks[1])
+    elif v == '4.12.2':
+        return '4.13'
+    elif v == '4.10.1':
+        return '4.11'
+
+    return v
+
+
 def splitWhile(pred, xs):
     """Split input when the predicate fails.
 
@@ -564,6 +595,55 @@ def convert_note(note):
     return out
 
 
+def convert_versionwarning(block):
+    """Create a versionxxx block.
+
+    Parameters
+    ----------
+    block : rst.versionnode
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    """
+
+    if block.tagname == 'versionadded':
+        lbl = 'Added'
+    elif block.tagname == 'versionchanged':
+        lbl = 'Changed'
+    else:
+        assert False, block
+
+    # Assume:
+    #  first word of the first paragraph is the version
+    #
+    assert all([is_para(n) for n in block]), blck
+
+    nblock = len(block)
+
+    b0 = astext(block[0])
+    toks = b0.split(maxsplit=1)
+
+    version = convert_version_number(toks[0])
+    title = '{} in version {}'.format(lbl, version)
+
+    out = ElementTree.Element("PARA")
+    out.set('title', title)
+
+    if len(toks) == 1:
+        assert nblock == 1, block
+        return out
+
+    out.text = toks[1]
+
+    if nblock != 1:
+        raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
+
+    return out
+
+
 def convert_field_body(fbody):
     """Create a field_body block.
 
@@ -601,6 +681,8 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'bullet_list': convert_bullet_list,
                    'table': convert_table,
                    'note': convert_note,
+                   'versionadded': convert_versionwarning,
+                   'versionchanged': convert_versionwarning,
                    'field_body': convert_field_body,
                    'literal_block': convert_literal_block}
 
