@@ -543,7 +543,8 @@ def convert_definition_list(para):
     For now use a table.
     """
 
-    dbg('CHECK CONVERSION OF DL', info='TODO')
+    # So far this is okay
+    # dbg('CHECK CONVERSION OF DL', info='TODO')
     return convert_definition_list_as_table(para)
 
 
