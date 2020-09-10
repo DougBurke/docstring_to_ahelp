@@ -459,6 +459,7 @@ def convert_definition_list(para):
     -----
     At present each list item creates a single paragraph. This may
     have to change.
+
     """
 
     assert para.tagname == 'definition_list', para
@@ -472,10 +473,37 @@ def convert_definition_list(para):
         assert el[1][0].tagname == 'paragraph', el
         assert len(el[1]) == 1, el
 
-        xml = convert_para(el[1])
+        xml = convert_definition(el[1])
         xml.set('title', el[0].astext())
         out.append(xml)
 
+    return out
+
+
+def convert_definition(para):
+    """Create a definition.
+
+    This is just the default paragraph handling.
+
+    Parameters
+    ----------
+    para : docutils.nodes.definition
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    """
+
+    assert para.tagname == 'definition', para
+
+    text = []
+    for n in para:
+        text.append(astext(n))
+
+    out = ElementTree.Element("PARA")
+    out.text = "\n".join(text)
     return out
 
 
@@ -683,6 +711,7 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'block_quote': convert_block_quote,
                    'enumerated_list': convert_enumerated_list,
                    'definition_list': convert_definition_list,
+                   'definition': convert_definition,
                    'bullet_list': convert_bullet_list,
                    'table': convert_table,
                    'note': convert_note,
