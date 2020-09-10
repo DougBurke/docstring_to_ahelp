@@ -10,6 +10,7 @@ TODO:
 """
 
 from collections import OrderedDict
+import re
 import sys
 
 from docutils import nodes
@@ -844,6 +845,45 @@ def make_para_blocks(para):
 
     return out
 
+CLASS_RE = re.compile("(.+)<class 'sherpa\..+\.([^\.]+)'>(.+)")
+
+def cleanup_sig_class(sig):
+    """<class 'sherpa.*.X'> -> X"""
+
+    m = re.match(CLASS_RE, sig)
+    if m is None:
+        return sig
+
+    sig = m[1] + m[2] + m[3]
+    return cleanup_sig_class(sig)
+
+
+FUNCTION_RE = re.compile("(.+)<function ([^ ]+) at 0x[^>]+>(.+)")
+
+def cleanup_sig_function(sig):
+    """<function foo at 0x...> -> foo"""
+
+    m = re.match(FUNCTION_RE, sig)
+    if m is None:
+        return sig
+
+    sig = m[1] + m[2] + m[3]
+    return cleanup_sig_function(sig)
+
+
+def cleanup_sig(sig):
+    """Try to make the default Python signature less intimidating.
+
+    Heuristics:
+
+
+    """
+
+    osig = sig
+    sig = cleanup_sig_class(sig)
+    sig = cleanup_sig_function(sig)
+    return sig
+
 
 def find_syntax(name, sig, indoc):
     """Return the syntax line, if present, and the remaining document.
@@ -873,7 +913,7 @@ def find_syntax(name, sig, indoc):
     # for classes.
     #
     if sig is not None:
-        argline = make_syntax_block([sig])
+        argline = make_syntax_block([cleanup_sig(sig)])
     else:
         argline = None
 
@@ -887,7 +927,7 @@ def find_syntax(name, sig, indoc):
 
     assert txt.endswith(')'), txt
 
-    dbg("- using SYNTAX block from file")
+    dbg("- using SYNTAX block from file", info='WARN')
     out = make_syntax_block([txt])
     return out, indoc[1:]
 
