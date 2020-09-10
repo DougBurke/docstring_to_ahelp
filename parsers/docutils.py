@@ -20,8 +20,17 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
+objname = '<unset>'
+
+
+def set_parent(name):
+    """Used to report messages"""
+    global objname
+    objname = name
+
+
 def dbg(msg, info='DBG'):
-    sys.stderr.write("{}: {}\n".format(info, msg))
+    sys.stderr.write("{} - {}: {}\n".format(objname, info, msg))
 
 
 def convert_version_number(v):

@@ -27,6 +27,8 @@ from sphinx import addnodes
 # import sphinx.domains.python
 #
 
+from .docutils import set_parent
+
 '''
 # Try and hack in support for the Sphinx-provided roles and directives
 #
@@ -154,6 +156,7 @@ def parse_restructured(name, sdoc):
 
     """
 
+    set_parent(name)
     default_settings = OptionParser(components=(rst.Parser,)).get_default_values()
     document = new_document(name, default_settings)
     parser = rst.Parser()
