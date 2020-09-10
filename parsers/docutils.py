@@ -1572,6 +1572,30 @@ def extract_params(fieldinfo):
         name = 'function'
         value = 'parameter'
 
+    # For now only handle the simple case for the return values
+    #
+    rvals = [r[1] for r in retinfo if r[0] == 'returns']
+    assert len(rvals) < 2, retinfo
+    if len(rvals) > 0:
+        assert rvals[0].tagname == 'field_body'
+
+        # If their is no text (other than the name of the return value)
+        # then skip it. I hope this is sufficient
+        #
+        if len(astext(rvals[0][0]).strip().split()) == 1:
+            return_value = None
+        else:
+            return_value = convert_field_body(rvals[0])
+
+    else:
+        return_value = None
+
+    # If there are no parameters and no return value we can return now
+    #
+    if nparams == 0 and return_value is None:
+        dbg('No parameters or return value', info='INFO')
+        return None
+
     adesc = ElementTree.Element("ADESC",
                                 {'title': '{}S'.format(value.upper())})
 
@@ -1606,20 +1630,12 @@ def extract_params(fieldinfo):
         for p in ps:
             adesc.append(p)
 
-    if nret == 0:
+    if return_value is None:
         return adesc
 
     p = ElementTree.SubElement(adesc, 'PARA', {'title': 'Return value'})
     p.text = 'The return value from this function is:'
-
-    # For now only handle the simple case
-    #
-    rvals = [r[1] for r in retinfo if r[0] == 'returns']
-    assert len(rvals) == 1, retinfo
-    assert rvals[0].tagname == 'field_body'
-
-    adesc.append(convert_field_body(rvals[0]))
-
+    adesc.append(return_value)
     return adesc
 
 
