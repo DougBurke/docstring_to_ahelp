@@ -1504,6 +1504,80 @@ def find_references(indoc):
     return out, rnodes
 
 
+# this does not extend across a newline
+SHERPA_MODEL_SETTING_RE = re.compile(">>> (.+) = sherpa.models\.[^\(]+\.([A-Z][a-zA-Z0-9]+)()")
+SHERPA_MODELS_RE = re.compile("(.+)sherpa.models\.[^\(]+\.([A-Z][a-zA-Z0-9]+)(.+)")
+
+
+def cleanup_sherpa_model_setting(txt):
+    """Convert >>> mdl = sherpa.models.xxx.Foo() to >>> foo.mdl
+
+    This should be called before cleanup_sherpa_models
+    """
+
+    def convert(intxt):
+        m = re.match(SHERPA_MODEL_SETTING_RE, intxt)
+        if m is None:
+            return intxt
+
+        out = f'>>> {m[2].lower()}.{m[1]}'
+        dbg(intxt + ' :: ' + out, info='SETTING')
+        return out
+
+    out = []
+    for line in txt.split('\n'):
+        out.append(convert(line))
+
+    return '\n'.join(out)
+
+
+def cleanup_sherpa_models(txt):
+    """Convert sherpa.models.xxx.Foo( to foo("""
+
+    def convert(intxt):
+        m = re.match(SHERPA_MODELS_RE, intxt)
+        if m is None:
+            return intxt
+
+        txt = m[1] + m[2].lower() + m[3]
+        out = convert(txt)
+        dbg(intxt + ' :: ' + out, info='RENAME')
+        return out
+
+    out = []
+    for line in txt.split('\n'):
+        out.append(convert(line))
+
+    return '\n'.join(out)
+
+
+def convert_example_text(txt):
+    """Apply any expected conversions for example text.
+
+    Parameters
+    ----------
+    txt : str
+        The input text
+
+    Returns
+    -------
+    converted : str
+        The converted text.
+
+    Notes
+    -----
+    Conversions are:
+        mdl = sherpa.models.xxx.FooBar3D() -> foobar3d.mdl()
+        sherpa.models.xxx.FooBar3D( -> foobar3d(
+
+    """
+
+    txt = cleanup_sherpa_model_setting(txt)
+    txt = cleanup_sherpa_models(txt)
+
+    return txt
+
+
 def find_examples(indoc):
     """Return the examples section, if present, and the remaining document.
 
@@ -1521,6 +1595,12 @@ def find_examples(indoc):
     -----
     The base is text + examples. There's some support to handle multiple
     text + example blocks, but it is very hacky.
+
+    The example text has to be parsed to
+
+       convert model names to lower case and the UI
+         approach (XSapec() -> xspec.mdl)
+       remove namespace identifiers (e.g. sherpa.models.basic)
 
     """
 
@@ -1584,6 +1664,14 @@ def find_examples(indoc):
                 desc = ElementTree.SubElement(example, 'DESC')
 
         for p in make_para_blocks(para):
+
+            # We could try to edit the text before conversion, but
+            # it's easier to do here, if uglier.
+            #
+            assert isinstance(p, ElementTree.Element)
+            assert p.tag in ['PARA', 'VERBATIM'], p.tag
+
+            p.text = convert_example_text(p.text)
             desc.append(p)
 
         # Do we start a new example?
