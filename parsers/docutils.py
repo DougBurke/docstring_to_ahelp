@@ -133,6 +133,9 @@ def is_para(node):
     return node.tagname == 'paragraph'
 
 
+XSMODEL_RE = re.compile('^XS[a-z0-9]+$')
+
+
 def astext(node):
     """Extract the text contents of the node.
 
@@ -188,11 +191,50 @@ def astext(node):
         return "[{}]".format(node.astext())
 
     elif node.tagname == 'title_reference':
-        return "`{}`".format(node.astext())
+        # Limited support: hard-coded to match the current documentation
+        # as it's not obvious it's easy to fix.
+        #
+        out = node.astext()
+
+        if out == 'sherpa.models.model.ArithmeticModel':
+            return "`ArithmeticModel`"
+        elif out == 'sherpa.models.parameter.Parameter':
+            return "`Parameter`"
+        elif out == 'sherpa.instrument.PSFModel':
+            return 'psfmodel'
+        elif out == 'sherpa.astro.models.JDPileup':
+            return 'jdpileup'
+        elif out.startswith('sherpa.astro.ui.'):
+            out = out[16:]
+            if out.startswith('utils.'):
+                out = out[6:]
+
+            return f"`{out}`"
+
+        # if out.startswith('sherpa.'):
+        #     assert False, "title_reference: " + out
+
+        return "`{}`".format(out)
 
     elif node.tagname == 'literal':
-        # what should be done here?
-        return node.astext()
+        # Limited speacial case here:
+        #   leave non-Sherpa names as is (hard-coded to True, False, StringIO at the momnt)
+        #   XSmodel -> xsmodel
+        #
+        out = node.astext()
+        if out in ['True', 'False', 'StringIO']:
+            return out
+
+        if out.startswith('XS') and re.match(XSMODEL_RE, out) is None:
+            assert False, "literal: " + out
+
+        if out.startswith('sherpa.'):
+            assert out
+
+        if re.match(XSMODEL_RE, out):
+            return out.lower()
+
+        return out.lower()
 
     elif node.tagname == 'emphasis':
         # what should be done here?
@@ -845,30 +887,27 @@ def make_para_blocks(para):
 
     return out
 
+def cleanup_re(regexp, txt):
+    m = re.match(regexp, txt)
+    if m is None:
+        return txt
+
+    ntxt = m[1] + m[2] + m[3]
+    return cleanup_re(regexp, ntxt)
+
+
 CLASS_RE = re.compile("(.+)<class 'sherpa\..+\.([^\.]+)'>(.+)")
 
 def cleanup_sig_class(sig):
     """<class 'sherpa.*.X'> -> X"""
-
-    m = re.match(CLASS_RE, sig)
-    if m is None:
-        return sig
-
-    sig = m[1] + m[2] + m[3]
-    return cleanup_sig_class(sig)
+    return cleanup_re(CLASS_RE, sig)
 
 
 FUNCTION_RE = re.compile("(.+)<function ([^ ]+) at 0x[^>]+>(.+)")
 
 def cleanup_sig_function(sig):
     """<function foo at 0x...> -> foo"""
-
-    m = re.match(FUNCTION_RE, sig)
-    if m is None:
-        return sig
-
-    sig = m[1] + m[2] + m[3]
-    return cleanup_sig_function(sig)
+    return cleanup_re(FUNCTION_RE, sig)
 
 
 def cleanup_sig(sig):
@@ -879,7 +918,6 @@ def cleanup_sig(sig):
 
     """
 
-    osig = sig
     sig = cleanup_sig_class(sig)
     sig = cleanup_sig_function(sig)
     return sig
@@ -1506,6 +1544,7 @@ def find_references(indoc):
 
 # this does not extend across a newline
 SHERPA_MODEL_SETTING_RE = re.compile(">>> (.+) = sherpa.models\.[^\(]+\.([A-Z][a-zA-Z0-9]+)()")
+SHERPA_XSMODEL_SETTING_RE = re.compile(">>> (.+) = XS([a-zA-Z0-9]+)()")
 SHERPA_MODELS_RE = re.compile("(.+)sherpa.models\.[^\(]+\.([A-Z][a-zA-Z0-9]+)(.+)")
 
 
@@ -1522,6 +1561,28 @@ def cleanup_sherpa_model_setting(txt):
 
         out = f'>>> {m[2].lower()}.{m[1]}'
         dbg(intxt + ' :: ' + out, info='SETTING')
+        return out
+
+    out = []
+    for line in txt.split('\n'):
+        out.append(convert(line))
+
+    return '\n'.join(out)
+
+
+def cleanup_sherpa_xsmodel_setting(txt):
+    """Convert >>> mdl = XSfoo() to >>> xsfoo.mdl
+
+    This should be called before cleanup_sherpa_models
+    """
+
+    def convert(intxt):
+        m = re.match(SHERPA_XSMODEL_SETTING_RE, intxt)
+        if m is None:
+            return intxt
+
+        out = f'>>> xs{m[2].lower()}.{m[1]}'
+        dbg(intxt + ' :: ' + out, info='XSSETTING')
         return out
 
     out = []
@@ -1567,12 +1628,14 @@ def convert_example_text(txt):
     Notes
     -----
     Conversions are:
-        mdl = sherpa.models.xxx.FooBar3D() -> foobar3d.mdl()
+        >>> mdl = sherpa.models.xxx.FooBar3D() -> >>> foobar3d.mdl()
+        >>> mdl = XSfoo() -> >>> xsfoo.mdl
         sherpa.models.xxx.FooBar3D( -> foobar3d(
 
     """
 
     txt = cleanup_sherpa_model_setting(txt)
+    txt = cleanup_sherpa_xsmodel_setting(txt)
     txt = cleanup_sherpa_models(txt)
 
     return txt
@@ -1987,6 +2050,8 @@ def convert_docutils(name, doc, sig,
     take advantage of the extra features that the cxcdocumentationpage
     DTD affords.
     """
+
+    # print(doc); assert False
 
     if dtd not in ['ahelp', 'sxml']:
         raise ValueError("Unrecognized dtd value")
