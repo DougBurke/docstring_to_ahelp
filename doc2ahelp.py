@@ -23,11 +23,15 @@ The script requires that a CIAO installation has been initialized,
 since it is used to access the Sherpa documentation from
 
    sherpa.astro.ui
-   sherpa.stats
-   sherpa.optmethods
+   sherpa.stats            CURRENTLY UNUSED
+   sherpa.optmethods       CURRENTLY UNUSED
 
 The ahelp files in the CIAO documentation are used to create the
 ahelp metadata.
+
+The following files are auto-created:
+
+   xs
 
 The output is to outdir/<key>.<suffix> where <key> is based on the
 "ahelp key" (it should be the same but may be different), and
@@ -37,7 +41,6 @@ The script will over-write any existing file.
 
 TODO:
   - indicate new/missing files
-  - create composite pages like 'ahelp models' 'ahelp xs'?
 
   - how to handle the known problem cases?
 
@@ -56,7 +59,7 @@ from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
 
-from helpers import save_doc
+from helpers import save_doc, list_xspec_models
 
 
 def process_symbol(name, sym, dtd='ahelp',
@@ -168,6 +171,13 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
 
     nskip = len(names) - nproc
     print("\nProcessed {} files, skipped {}.".format(nproc, nskip))
+
+    # Create the model lists:
+    #    models.suffix
+    #    xs.suffix
+    #
+    outfile = list_xspec_models(outdir, dtd=dtd)
+    print(f"\n{outfile}\n")
 
     """
 
