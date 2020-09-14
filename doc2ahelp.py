@@ -31,6 +31,7 @@ ahelp metadata.
 
 The following files are auto-created:
 
+   models
    xs
 
 The output is to outdir/<key>.<suffix> where <key> is based on the
@@ -59,7 +60,7 @@ from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
 
-from helpers import save_doc, list_xspec_models
+from helpers import save_doc, list_xspec_models, list_sherpa_models
 
 
 def process_symbol(name, sym, dtd='ahelp',
@@ -176,8 +177,12 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
     #    models.suffix
     #    xs.suffix
     #
-    outfile = list_xspec_models(outdir, dtd=dtd)
-    print(f"\n{outfile}\n")
+    print("\nAlso:")
+    for outfile in [list_sherpa_models(outdir, dtd=dtd),
+                    list_xspec_models(outdir, dtd=dtd)]:
+        print(f"  {outfile}")
+
+    print("")
 
     """
 

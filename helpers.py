@@ -6,7 +6,7 @@ import sys
 from xml.etree import ElementTree
 
 from sherpa.ui.utils import ModelWrapper
-from sherpa.astro.xspec import XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel
+from sherpa.astro.xspec import XSModel, XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel
 from sherpa.astro import ui
 
 from parsers.ahelp import find_metadata
@@ -38,14 +38,15 @@ def save_doc(outfile, xmldoc):
         xmldoc.write(f, 'utf-8')
 
 
-def add_model_list(caption, models):
+def add_model_list(caption, models, xspec=True):
     """Return a TABLE element describing the models."""
 
     tbl = ElementTree.Element('TABLE')
     ElementTree.SubElement(tbl, 'CAPTION').text = caption
 
     row0 = ElementTree.SubElement(tbl, 'ROW')
-    ElementTree.SubElement(row0, 'DATA').text = 'New'
+    if xspec:
+        ElementTree.SubElement(row0, 'DATA').text = 'New'
     ElementTree.SubElement(row0, 'DATA').text = 'Model name'
     ElementTree.SubElement(row0, 'DATA').text = 'Description'
 
@@ -62,13 +63,16 @@ def add_model_list(caption, models):
             desc = desc[len(hdr):]
         elif desc.lower().startswith(hdr2.lower()):
             desc = desc[len(hdr2):]
-        else:
-            sys.stderr.write("Name mis-match {} vs {}\n".format(name, desc))
-            idx = desc.find(': ')
-            if idx == -1:
-                raise ValueError(desc)
 
-            desc = desc[idx + 2:]
+        # else:
+        #     sys.stderr.write("Name mis-match {} vs {}\n".format(name, desc))
+        #     idx = desc.find(': ')
+        #     if idx == -1:
+        #         raise ValueError(desc)
+        #
+        #     desc = desc[idx + 2:]
+
+        row = ElementTree.SubElement(tbl, 'ROW')
 
         # HACKY way to determine if this is new or not - I would like to
         # query the model's metadata but we don't encode this information.
@@ -76,10 +80,11 @@ def add_model_list(caption, models):
         # 'This model is only available when used with XSPEC 12.11.0 or later.'
         # OR if this is a convolution kernel
         #
-        new = isinstance(sym(), XSConvolutionKernel) or sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
+        if xspec:
+            new = isinstance(sym(), XSConvolutionKernel) or sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
 
-        row = ElementTree.SubElement(tbl, 'ROW')
-        ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+
         ElementTree.SubElement(row, 'DATA').text = name
         ElementTree.SubElement(row, 'DATA').text = desc
 
@@ -98,8 +103,8 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     Returns
     -------
-    ahelp
-        The ahelp version of the documentation.
+    outfile
+        The name of the file.
     """
 
     if not os.path.isdir(outdir):
@@ -135,7 +140,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         if len(models) == 0:
             raise ValueError("Unable to find any {} models".format(label))
 
-        unexpected = [n for n in add_models if not n.startswith('xs')]
+        unexpected = [n for n in models if not n.startswith('xs')]
         if len(unexpected) > 0:
             raise ValueError("{}: {}".format(label, unexpected))
 
@@ -415,6 +420,195 @@ xspowerlaw.pl
 
     suffix = 'sxml' if dtd == 'sxml' else 'xml'
     outfile = os.path.join(outdir, 'xs.{}'.format(suffix))
+    save_doc(outfile, outdoc)
+
+    return outfile
+
+
+def list_sherpa_models(outdir, dtd='ahelp'):
+    """Create the models ahelp page.
+
+    Parameters
+    ----------
+    outdir : string
+        The output directory, which must already exist.
+    dtd : {'ahelp', 'sxml'}, optional
+        The DTD to use.
+
+    Returns
+    -------
+    outfile
+        The name of the file.
+    """
+
+    if not os.path.isdir(outdir):
+        sys.stderr.write("ERROR: outdir={} does not exist\n".format(outdir))
+        sys.exit(1)
+
+    if dtd not in ['ahelp', 'sxml']:
+        raise ValueError("Invalid dtd argument")
+
+    # Hard-coded list of names to exclude
+    #
+    excluded = ['arfmodel', 'arfmodelnopha', 'arfmodelpha',
+                'rmfmodel', 'rmfmodelnopha', 'rmfmodelpha',
+                'rspmodel', 'rspmodelnopha', 'rspmodelpha',
+                'pileuprmfmodel',
+                'multiresponsesummodel',
+                'knninterpolator',
+                'psfmodel',
+                'convolutionmodel',
+                'tablemodel',
+                'template', 'templatemodel', 'usermodel',
+                'integrate1d'  # WHAT TO DO ABOUT THIS
+    ]
+
+    models1 = []
+    models2 = []
+    for name in dir(ui):
+        if name in excluded:
+            continue
+
+        sym = getattr(ui, name)
+        if not isinstance(sym, ModelWrapper):
+            continue
+
+        mclass = sym.modeltype
+        if issubclass(mclass, XSModel):
+            continue
+
+        if mclass.__doc__ is None:
+            raise ValueError(f"Name={name}")
+
+        if mclass.ndim == 1:
+            models1.append(name)
+        elif mclass.ndim == 2:
+            models2.append(name)
+        else:
+            raise ValueError(mclass.ndim)
+
+    def check(label, models):
+        if len(models) == 0:
+            raise ValueError("Unable to find any {} models".format(label))
+
+    check('sherpa 1D', models1)
+    check('sherpa 2D', models2)
+
+    stbl1 = add_model_list('One-dimensional Sherpa models', models1, xspec=False)
+    stbl2 = add_model_list('Two-dimensional Sherpa models', models2, xspec=False)
+
+    rootname = None
+    if dtd == 'ahelp':
+        rootname = 'cxchelptopics'
+    elif dtd == 'sxml':
+        rootname = 'cxcdocumentationpage'
+    else:
+        raise RuntimeError('unknown dtd={}'.format(dtd))
+
+    xmlattrs = {'pkg': 'sherpa',
+                'key': 'models',
+                'refkeywords': '',
+                'seealsogroups': '',
+                'displayseealsogroups': '',
+                'context': None
+                }
+
+    metadata = find_metadata('models')
+    if metadata is None:
+        raise IOError('no ahelp for XS')
+
+    if metadata is not None:
+        for k, v in metadata.items():
+            if k in ['seealsogroups', 'displayseealsogroups']:
+                continue
+
+            assert k in xmlattrs
+
+            # special case refkeywords to append to the existing
+            # set
+            #
+            if k == 'refkeywords':
+                # repeats aren't really a problem but clean them up
+                # anyway
+                newkeys = (xmlattrs[k] + ' ' + v).split()
+                newkeys = sorted(list(set(newkeys)))
+                xmlattrs[k] = ' '.join(newkeys)
+            else:
+                xmlattrs[k] = v
+
+    if xmlattrs['context'] is None:
+        raise IOError("No context for XS!")
+
+    def add_para(parent, text, title=None):
+        out = ElementTree.SubElement(parent, 'PARA')
+        out.text = text
+        if title is not None:
+            out.set('title', title)
+
+        return out
+
+    root = ElementTree.Element(rootname)
+
+    root.append(ElementTree.Comment("THIS IS AUTO-GENERATED TEXT"))
+
+    outdoc = ElementTree.ElementTree(root)
+    entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
+    ElementTree.SubElement(entry, 'SYNOPSIS').text = 'Summary of Sherpa models (excluding XSPEC).'
+
+    desc = ElementTree.SubElement(entry, 'DESC')
+
+    para = add_para(desc, '''The following table lists most of the models available within Sherpa.
+        See ''')
+
+    href = ElementTree.SubElement(para, 'HREF')
+    href.set('link', 'https://cxc.harvard.edu/sherpa/ahelp/xs.html')
+    href.text = '"ahelp xs"'
+
+    href.tail = ' for those models provided by XSPEC, '
+
+    href = ElementTree.SubElement(para, 'HREF')
+    href.set('link', 'https://cxc.harvard.edu/sherpa/ahelp/tablemodel.html')
+    href.text = '"ahelp tablemodel"'
+
+    href.tail = ' for table models, and '
+
+    href = ElementTree.SubElement(para, 'HREF')
+    href.set('link', 'https://cxc.harvard.edu/sherpa/ahelp/load_user_model.html')
+    href.text = '"ahelp load_user_model"'
+
+    href.tail = ' for user-supplied models, respectively.'
+
+    # Tables galore
+    desc.append(stbl1)
+    desc.append(stbl2)
+
+    adesc = ElementTree.SubElement(entry, 'ADESC')
+    adesc.set('title', 'Are models evaluated at a point or across a bin?')
+
+    para = add_para(adesc, '''The integration of models in Sherpa is controlled by an
+     integration flag in each model structure.  Refer to''')
+
+    href = ElementTree.SubElement(para, 'HREF')
+    href.set('link', 'https://cxc.harvard.edu/sherpa/ahelp/integrate.html')
+    href.text = '"ahelp integrate"'
+
+    href.tail = ' for information on integrating model components.'
+
+    bugs = ElementTree.SubElement(entry, 'BUGS')
+
+    para = add_para(bugs, 'See the')
+
+    href = ElementTree.SubElement(para, 'HREF')
+    href.set('link', 'htps://cxc.harvard.edu/sherpa/bugs/')
+    href.text = 'bugs pages on the Sherpa website'
+
+    href.tail = ' for an up-to-date listing of known bugs.'
+
+    lastmod = ElementTree.SubElement(entry, 'LASTMODIFIED')
+    lastmod.text = 'December 2020'
+
+    suffix = 'sxml' if dtd == 'sxml' else 'xml'
+    outfile = os.path.join(outdir, 'models.{}'.format(suffix))
     save_doc(outfile, outdoc)
 
     return outfile
