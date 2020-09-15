@@ -736,6 +736,15 @@ def convert_note(note):
         out = convert_para(note[1])
 
     out.set('title', title)
+
+    # SPECIAL CASE xsthcomp
+    # - it contains a note that is not relevant for CIAO, as it
+    #   refers to a change in XSPEC models 12.11.0 to 12.11.1
+    #   and we have no CIAO version with 12.11.0
+    #
+    if title == 'Parameter renames in XSPEC 12.11.1':
+        return None
+
     return out
 
 
