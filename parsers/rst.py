@@ -88,6 +88,7 @@ class SeeAlso(BaseAdmonition):
 class versionnode(addnodes.versionmodified):
     """Not really needed but helps documention"""
 
+
 class versionchanged(versionnode):
     """versionchanged"""
 

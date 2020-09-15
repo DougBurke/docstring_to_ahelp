@@ -9,7 +9,7 @@ TODO:
 
 """
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import re
 import sys
 
@@ -739,19 +739,34 @@ def convert_note(note):
     return out
 
 
+store_versions = None
+
+
+def reset_stored_versions():
+    global store_versions
+    store_versions = {'versionadded': [], 'versionchanged': []}
+
+
 def convert_versionwarning(block):
     """Create a versionxxx block.
+
+    This is handled differently to normal nodes as we want to
+    move this out of the main text and into an ADESC block at
+    the end. The data is added to store_versions rather than
+    returning anything,
 
     Parameters
     ----------
     block : rst.versionnode
         The contents to add.
 
-    Returns
-    -------
-    out : ElementTree.Element
-
     """
+
+    # safety check to ensure we don't have these blocks in other
+    # parts of the document.
+    #
+    if 'DONE' in store_versions:
+        raise ValueError("Unexpected block {}".format(block))
 
     if block.tagname == 'versionadded':
         lbl = 'Added'
@@ -771,21 +786,20 @@ def convert_versionwarning(block):
     toks = b0.split(maxsplit=1)
 
     version = convert_version_number(toks[0])
-    title = '{} in version {}'.format(lbl, version)
+    title = '{} in CIAO {}'.format(lbl, version)
 
     out = ElementTree.Element("PARA")
     out.set('title', title)
 
-    if len(toks) == 1:
+    if len(toks) > 1:
         assert nblock == 1, block
-        return out
-
-    out.text = toks[1]
+        out.text = toks[1]
 
     if nblock != 1:
         raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
 
-    return out
+    store_versions[block.tagname].append(out)
+    return None
 
 
 def convert_field_body(fbody):
@@ -882,6 +896,9 @@ def make_para_blocks(para):
         single = para.tagname not in para_mconverters
 
     out = converter(para)
+    if out is None:
+        return []
+
     if single:
         out = [out]
 
@@ -1123,6 +1140,11 @@ def find_desc(indoc):
 
     The output does **not** contain any parameter information,
     since this is added lately.
+
+    There is special-case handling when the desc block only contains
+    versionadded/changed blocks, as we then don't want any DESC
+    block.
+
     """
 
     def want(x):
@@ -1135,12 +1157,15 @@ def find_desc(indoc):
     out = ElementTree.Element('DESC')
     for para in pnodes:
         for b in make_para_blocks(para):
+            if b is None:
+                continue
             out.append(b)
 
     # assert len(out) > 0
     if len(out) == 0:
         dbg("no text in DESC block", info='NOTE')
 
+    # should we return None if out is empty?
     return out, rnodes
 
 
@@ -2051,12 +2076,13 @@ def convert_docutils(name, doc, sig,
     DTD affords.
     """
 
-    # print(doc); assert False
-
     if dtd not in ['ahelp', 'sxml']:
         raise ValueError("Unrecognized dtd value")
 
     assert synonyms is None or len(synonyms) > 0, synonyms
+
+    # used to parse the versionadded/changed tags
+    reset_stored_versions()
 
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
@@ -2066,6 +2092,32 @@ def convert_docutils(name, doc, sig,
     syntax, nodes = find_syntax(name, sig, nodes)
     synopsis, refkeywords, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
+
+    # Do we have versionadded/changed data?
+    #
+    # stick them into a single ADESC block
+    versioninfo = ElementTree.Element('ADESC')
+    versioninfo.set('title', 'Changes in CIAO')
+
+    for key in store_versions.keys():
+        assert key in ['versionadded', 'versionchanged'], key
+
+    # assume the versionchanged is in descending numerical order
+    #
+    added = 0
+    for p in store_versions['versionchanged'][::-1]:
+        versioninfo.append(p)
+        added += 1
+
+    for p in store_versions['versionadded']:
+        versioninfo.append(p)
+        added += 1
+
+    if added == 0:
+        versioninfo = None
+
+    # Ensure we don't come across any more versionxxx tags
+    store_versions['DONE'] = []
 
     # For XSPEC models, add a note about additive or multiplicative to
     # the SYNTAX block (could go in the description but let's try
@@ -2225,7 +2277,7 @@ def convert_docutils(name, doc, sig,
     entry = ElementTree.SubElement(root, 'ENTRY', xmlattrs)
 
     for n in [synopsis, syntax, desc, examples, params,
-              warnings, notes, notes2, refs]:
+              warnings, notes, notes2, refs, versioninfo]:
         if n is None:
             continue
 
