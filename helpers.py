@@ -38,21 +38,47 @@ def save_doc(outfile, xmldoc):
         xmldoc.write(f, 'utf-8')
 
 
+def is_xspec_1211_model(sym):
+    """Is this a model introduced in XSPEC 12.11.0?"""
+
+    if sym.__doc__ is None:
+        return False
+
+    return sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
+
+
 def add_model_list(caption, models, xspec=True):
     """Return a TABLE element describing the models."""
 
     tbl = ElementTree.Element('TABLE')
     ElementTree.SubElement(tbl, 'CAPTION').text = caption
 
+    is_convolution = isinstance(getattr(ui, models[0]).modeltype(), XSConvolutionKernel)
+
     row0 = ElementTree.SubElement(tbl, 'ROW')
-    if xspec:
+
+    has_new = False
+    if xspec and is_convolution:
+        has_new = True
+
+    if 'voigt1d' in models:
+        has_new = True
+
+    if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
+
     ElementTree.SubElement(row0, 'DATA').text = 'Model name'
     ElementTree.SubElement(row0, 'DATA').text = 'Description'
 
     for name in sorted(models):
         sym = getattr(ui, name).modeltype
         desc = sym.__doc__.split("\n")[0]
+
+        # Unfortunately for CIAO 4.13 we need to stay with XSPEC 12.10.1,
+        # so we have to ignore the 12.11.0 models.
+        #
+        if is_xspec_1211_model(sym):
+            raise RuntimeError(f"SHOULD NOT HAVE GOT HERE: {name}")
 
         # Assume it is 'The XSPEC <> model: ...' but note that <> is
         # not necessarily the <> name (it should be)
@@ -80,10 +106,21 @@ def add_model_list(caption, models, xspec=True):
         # 'This model is only available when used with XSPEC 12.11.0 or later.'
         # OR if this is a convolution kernel
         #
+        """
         if xspec:
-            new = isinstance(sym(), XSConvolutionKernel) or sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
+            # We don't have the 12.11.0 models in CIAO 4.13
+            #
+            # new = isinstance(sym(), XSConvolutionKernel) or sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
+
+            new = isinstance(sym(), XSConvolutionKernel)
 
             ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+        """
+
+        if xspec and is_convolution:
+            ElementTree.SubElement(row, 'DATA').text = 'NEW'
+        elif has_new:
+            ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
 
         ElementTree.SubElement(row, 'DATA').text = name
         ElementTree.SubElement(row, 'DATA').text = desc
@@ -129,6 +166,9 @@ def list_xspec_models(outdir, dtd='ahelp'):
             continue
 
         mclass = sym.modeltype
+        if is_xspec_1211_model(mclass):
+            continue
+
         if issubclass(mclass, XSAdditiveModel):
             add_models.append(name)
         elif issubclass(mclass, XSMultiplicativeModel):
@@ -202,7 +242,8 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    xspec_version = '12.11.1'
+    xspec_major_version = '12.10.1'
+    xspec_version = f'{xspec_major_version}s'
 
     root = ElementTree.Element(rootname)
 
@@ -214,7 +255,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.13 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
@@ -378,9 +419,9 @@ xspowerlaw.pl
     adesc = ElementTree.SubElement(entry, 'ADESC')
     adesc.set('title', 'Changes in CIO 4.13')
 
-    add_para(adesc, '''The XSPEC models bave been updated to release 12.11.1
-    in CIAO 4.13. Support for the following models has been added to Sherpa:
-    xsagnslim, xsbwcycl, xsismdust, xslogconst, xslog10con, xsolivineabs, and xszkerrbb.
+    add_para(adesc, '''The XSPEC models bave been updated to release 12.10.1s
+    in CIAO 4.13, from version 12.10.1n in CIAO 4.12. Anyone who wants to use
+    models from XSPEC 12.11.1 will have to use the standalone version of Sherpa.
     ''',
              title='XSPEC model updates')
 

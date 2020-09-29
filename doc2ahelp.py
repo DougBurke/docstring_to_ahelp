@@ -60,7 +60,7 @@ from parsers.rst import parse_restructured
 from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
 
-from helpers import save_doc, list_xspec_models, list_sherpa_models
+from helpers import save_doc, list_xspec_models, list_sherpa_models, is_xspec_1211_model
 
 
 def process_symbol(name, sym, dtd='ahelp',
@@ -140,6 +140,19 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
 
         if name in synonyms:
             print(" - skipping as a synonym for {}".format(synonyms[name]))
+            continue
+
+        # For CIAO 4.13 we have to drop the XSPEC 12.11.0 and 12.11.1 models,
+        # but there are only 12.11.0 models fortunately
+        #
+        if isinstance(sym, ModelWrapper) and is_xspec_1211_model(sym.modeltype):
+            print(" - skipping as XSPEC 12.11.0 model")
+            continue
+
+        # Skip AbsorptionVoigt and EmissionVoigt from the list
+        #
+        if name in ['absorptionvoigt', 'emissionvoigt']:
+            print(' - skipping absorption/emissionvoigt symbols')
             continue
 
         try:

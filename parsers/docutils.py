@@ -787,7 +787,7 @@ def convert_versionwarning(block):
     # Assume:
     #  first word of the first paragraph is the version
     #
-    assert all([is_para(n) for n in block]), blck
+    assert all([is_para(n) for n in block]), block
 
     nblock = len(block)
 
@@ -808,6 +808,62 @@ def convert_versionwarning(block):
         raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
 
     store_versions[block.tagname].append(out)
+    return None
+
+
+def convert_comment_versionwarning(block):
+    """Create a versionxxx block from an incorrect tag
+
+    I wrote '.. versionadded: 4.12.2' which was missing the
+    second colon, and this gets mapped to a comment block,
+    so catch this case.
+
+    Very hacky and based on convert_versionwarning
+
+    Parameters
+    ----------
+    block : rst.versionnode
+        The contents to add.
+
+    """
+
+    # safety check to ensure we don't have these blocks in other
+    # parts of the document.
+    #
+    if 'DONE' in store_versions:
+        raise ValueError("Unexpected block {}".format(block))
+
+    assert len(block) == 1
+
+    astxt = astext(block[0])
+    idx = astxt.find(':')
+    assert idx > 0
+
+    tagname = astxt[:idx]
+
+    if tagname == 'versionadded':
+        lbl = 'Added'
+    elif tagname == 'versionchanged':
+        lbl = 'Changed'
+    else:
+        assert False, block
+
+    astxt = astxt[idx + 1:]
+    toks = astxt.split('\n', maxsplit=1)
+
+    version = convert_version_number(toks[0].strip())
+    title = '{} in CIAO {}'.format(lbl, version)
+
+    out = ElementTree.Element("PARA")
+    out.set('title', title)
+
+    if len(toks) == 2:
+        out.text = toks[1]
+
+    if len(toks) > 2:
+        raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
+
+    store_versions[tagname].append(out)
     return None
 
 
@@ -851,6 +907,7 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'note': convert_note,
                    'versionadded': convert_versionwarning,
                    'versionchanged': convert_versionwarning,
+                   'comment': convert_comment_versionwarning,
                    'field_body': convert_field_body,
                    'literal_block': convert_literal_block}
 
@@ -1092,7 +1149,7 @@ def find_synopsis(indoc):
 
     Returns
     -------
-    synopsis, tags, remaining : ElementTree.Element or None, list of str, list of nodes
+    synopsis, tags, remaining : ElementTree.Element or None, set of str, list of nodes
         The contents of the SYNOPSIS block, words which can be used in the
         refkeywords attribute, and the remaining nodes.
 
@@ -1123,7 +1180,7 @@ def find_synopsis(indoc):
     # return a sorted list of keys to make comparisons easier
     #
     keys = [clean(k) for k in syn.lower().split()]
-    keywords = sorted(list(set(keys)))
+    keywords = set(keys)
 
     out = ElementTree.Element('SYNOPSIS')
     out.text = syn
@@ -1472,6 +1529,7 @@ def find_notes(name, indoc):
 
     # CIAO 4.12 used 12.10.1
     # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
+    #   but we are only going out with XSPEC 12.10.1
     #
     # Identify if we have a <this version is new> line.
     #
@@ -1480,6 +1538,10 @@ def find_notes(name, indoc):
         has_version |= para.astext() == v12110
 
     if has_version:
+        # because we've dropped back to XSPEC 12.10.1 I just want to
+        # make sure we have no new blocks like this
+        raise RuntimeError("This model should not be being processed")
+
         out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.13'})
         para = ElementTree.SubElement(out, 'PARA')
         para.text = 'The {} model '.format(name) + \
@@ -1594,7 +1656,7 @@ def cleanup_sherpa_model_setting(txt):
             return intxt
 
         out = f'>>> {m[2].lower()}.{m[1]}'
-        dbg(intxt + ' :: ' + out, info='SETTING')
+        # dbg(intxt + ' :: ' + out, info='SETTING')
         return out
 
     out = []
@@ -1616,7 +1678,7 @@ def cleanup_sherpa_xsmodel_setting(txt):
             return intxt
 
         out = f'>>> xs{m[2].lower()}.{m[1]}'
-        dbg(intxt + ' :: ' + out, info='XSSETTING')
+        # dbg(intxt + ' :: ' + out, info='XSSETTING')
         return out
 
     out = []
@@ -1636,7 +1698,7 @@ def cleanup_sherpa_models(txt):
 
         txt = m[1] + m[2].lower() + m[3]
         out = convert(txt)
-        dbg(intxt + ' :: ' + out, info='RENAME')
+        # dbg(intxt + ' :: ' + out, info='RENAME')
         return out
 
     out = []
@@ -2120,6 +2182,14 @@ def convert_docutils(name, doc, sig,
 
     for p in store_versions['versionadded']:
         versioninfo.append(p)
+
+        # special case the Voigt1D / PseudoVoigt1D models for CIAO 4.13
+        #
+        if name in ['pseudovoigt1d', 'voigt1d']:
+            assert p.text is None
+            p.text = 'The pseudovoigt1d and voigt1d models have been added in CIAO 4.13 ' + \
+                     'and replace the absorptionvoigt and emissionvoigt models.'
+
         added += 1
 
     if added == 0:
@@ -2243,6 +2313,16 @@ def convert_docutils(name, doc, sig,
     root = ElementTree.Element(rootname)
     outdoc = ElementTree.ElementTree(root)
 
+    # Special case the refkeywords for [pseudo]voigt1d
+    #
+    if name in ['pseudovoigt1d', 'voigt1d']:
+        refkeywords.add('absorptionvoigt')
+        refkeywords.add('emissionvoigt')
+        refkeywords.add('absorption')
+        refkeywords.add('emission')
+
+    refkeywords = sorted(list(refkeywords))
+
     xmlattrs = {'pkg': 'sherpa',
                 'key': name,
                 'refkeywords': ' '.join(refkeywords),
@@ -2301,7 +2381,7 @@ def convert_docutils(name, doc, sig,
                                        {'title': 'XSPEC version'})
         xpara = ElementTree.SubElement(xspec, 'PARA')
         xpara.text = 'CIAO 4.13 comes with support for version ' + \
-                     '12.11.1 of the XSPEC models. This can be ' + \
+                     '12.10.1s of the XSPEC models. This can be ' + \
                      'checked with the following:'
 
         cstr = "% python -c 'from sherpa.astro import xspec; " + \
@@ -2310,7 +2390,7 @@ def convert_docutils(name, doc, sig,
         xpara2 = ElementTree.SubElement(xspec, 'PARA')
         xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
         ElementTree.SubElement(xsyn, 'LINE').text = cstr
-        ElementTree.SubElement(xsyn, 'LINE').text = '12.11.1'
+        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.1s'
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
