@@ -77,6 +77,9 @@ def sym_to_docstring(name, sym):
     cdoc = cleandoc(doc)
 
     if name == 'set_xsabund':
+        # Something is odd, so just hack around it. Fortunately
+        # adding in a new line fixes it.
+        #
         sterm = 'The pre-defined abundance tables are:'
         idx = cdoc.find(sterm)
         if idx == -1:
