@@ -1947,7 +1947,7 @@ def extract_params(fieldinfo):
     return adesc
 
 
-def create_seealso(name, seealso):
+def create_seealso(name, seealso, symbol=None):
     """Come up with the seealsogroups metadata.
 
     Parameters
@@ -1957,6 +1957,9 @@ def create_seealso(name, seealso):
     seealso : list of str
         The symbols that have been manually selected as being related
         to name.
+    symbol
+        The symbol to document (e.g. sherpa.astro.ui.load_table or
+        sherpa.astro.ui.xsapec) or None.
 
     Returns
     -------
@@ -1972,12 +1975,33 @@ def create_seealso(name, seealso):
     relationship in the manual "See Also" sections, so this would miss
     out. It may be that we need to use displayseealsogroup instead;
     let's see.
+
+    We add in displayseealso entries for Sherpa and XSPEC models
+    (to shmodels and xsmodels respectively).
     """
 
+    def mkmodels():
+        if symbol is None:
+            return ''
+
+        if not isinstance(symbol, ModelWrapper):
+            return ''
+
+        if issubclass(symbol.modeltype,
+                          (XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel)):
+            mdls = 'xs'
+        else:
+            mdls = 'sh'
+
+        return f'{mdls}models'
+
+    dsg = mkmodels()
+
     if seealso is None:
-        msg = "- {} has no SEE ALSO".format(name)
-        dbg(msg)
-        return '', ''
+        if dsg == '':
+            msg = "- {} has no SEE ALSO".format(name)
+            dbg(msg)
+        return '', dsg
 
     # remove case and sort lexicographically.
     #
@@ -1993,7 +2017,7 @@ def create_seealso(name, seealso):
     pairs = [convert(nlower, s.lower()) for s in seealso]
 
     out = ' '.join(pairs)
-    return out, ''
+    return out, dsg
 
 
 def find_context(name, symbol=None):
@@ -2298,7 +2322,7 @@ def convert_docutils(name, doc, sig,
 
     # Try and come up with an automated 'See Also' solution
     #
-    seealsotags, displayseealsotags = create_seealso(name, seealso)
+    seealsotags, displayseealsotags = create_seealso(name, seealso, symbol=symbol)
 
     # Create the output
     #

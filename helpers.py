@@ -202,9 +202,9 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     xmlattrs = {'pkg': 'sherpa',
                 'key': 'xs',
-                'refkeywords': '',
-                'seealsogroups': '',
-                'displayseealsogroups': '',
+                'refkeywords': 'xspec models',
+                'seealsogroups': 'sh.models',
+                'displayseealsogroups': 'xsmodels',
                 'context': None
                 }
 
@@ -550,9 +550,9 @@ def list_sherpa_models(outdir, dtd='ahelp'):
 
     xmlattrs = {'pkg': 'sherpa',
                 'key': 'models',
-                'refkeywords': '',
-                'seealsogroups': '',
-                'displayseealsogroups': '',
+                'refkeywords': 'sherpa models',
+                'seealsogroups': 'sh.models',
+                'displayseealsogroups': 'shmodels',
                 'context': None
                 }
 
