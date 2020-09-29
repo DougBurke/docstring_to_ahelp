@@ -177,8 +177,9 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         if xml is None:
             continue
 
+        out_name = 'group_sherpa' if name == 'group' else name
         suffix = 'sxml' if dtd == 'sxml' else 'xml'
-        outfile = os.path.join(outdir, '{}.{}'.format(name, suffix))
+        outfile = os.path.join(outdir, '{}.{}'.format(out_name, suffix))
         save_doc(outfile, xml)
         print("Created: {}".format(outfile))
         nproc += 1
