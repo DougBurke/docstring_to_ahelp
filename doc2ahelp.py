@@ -50,6 +50,7 @@ TODO:
 
 """
 
+from collections import defaultdict
 import os
 
 from sherpa.ui.utils import ModelWrapper
@@ -120,7 +121,7 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
     # Restrict the symbols that get processed
     #
     names = sorted(list(ui.__all__))
-    nproc = 0
+    to_process = []
     for name in names:
 
         if restrict is not None and name not in restrict:
@@ -155,6 +156,17 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
             print(' - skipping absorption/emissionvoigt symbols')
             continue
 
+        to_process.append(name)
+
+    # Find potential mappings to identify multi-keyword files.
+    # We could store the find_metadata call to avoid calling it twice,
+    # but let's not bother.
+    #
+    filemaps = defaultdict(set)
+    for name in to_process:
+
+        sym = getattr(ui, name)
+
         try:
             syn_names = originals[name]
         except KeyError:
@@ -163,8 +175,50 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         try:
             ahelp = find_metadata(name, synonyms=syn_names)
         except ValueError as exc:
-            print(" - ahelp metadata skipped as {}".format(exc))
-            ahelp = None
+            continue
+
+        # we want to store a mapping from the keyword to this file
+        #
+        for key in ahelp['refkeywords'].split(' '):
+            key = key.lower()
+            if key in to_process and key != name:
+                filemaps[key].add(name)
+
+    nproc = 0
+    error_list = []
+    for name in to_process:
+
+        print("## {}".format(name))
+
+        sym = getattr(ui, name)
+
+        try:
+            syn_names = originals[name]
+        except KeyError:
+            syn_names = None
+
+        try:
+            ahelp = find_metadata(name, synonyms=syn_names)
+        except ValueError as exc:
+
+            # See if we can use the "parent" ahelp file. This is based on
+            # the assumption that for multi-command ahelp files the
+            # refkeywords would contain the "other" commands (those
+            # extra ones documented in the file), and so hopefully
+            # we can use the mapping we created to identify these
+            # commands.
+            #
+            fmaps = list(filemaps[name])
+            if len(fmaps) == 1:
+                ahelp = find_metadata(fmaps[0])
+                if ahelp is None:
+                    raise ValueError("Expected to have a usable metadata copy!")
+                else:
+                    print(f" - using metadata from {fmaps[0]}")
+                    ahelp['key'] = name  # important!
+            else:
+                print(" - ahelp metadata skipped as {}".format(exc))
+                ahelp = None
 
         try:
             xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
@@ -172,6 +226,7 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
                                  debug=debug)
         except Exception as exc:
             print(" - ERROR PROCESSING: {}".format(exc))
+            error_list.append(name)
             continue
 
         if xml is None:
@@ -186,6 +241,8 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
 
     nskip = len(names) - nproc
     print("\nProcessed {} files, skipped {}.".format(nproc, nskip))
+    if error_list != []:
+        print("Errored out: {}".format(error_list))
 
     # Create the model lists:
     #    models.suffix
