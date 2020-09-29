@@ -1976,8 +1976,13 @@ def create_seealso(name, seealso, symbol=None):
     out. It may be that we need to use displayseealsogroup instead;
     let's see.
 
+    I could restrict this to only those symbols that aren't connected
+    by the seealso grouping from the original ahelp files, but I
+    have not the energy to try that.
+
     We add in displayseealso entries for Sherpa and XSPEC models
-    (to shmodels and xsmodels respectively).
+    (to shmodels and xsmodels respectively). It doesn't seem to be
+    that useful.
     """
 
     def mkmodels():
@@ -2128,6 +2133,50 @@ def find_context(name, symbol=None):
         return 'model'
 
     return 'sherpaish'
+
+
+def merge_metadata(xmlattrs, metadata=None):
+    """Combine metadata from the ahelp file and docstring.
+
+    Parameters
+    ----------
+    xmlattrs : dict
+        The structure of the metadata, assumed to be taken from
+        the docstring. It is required to have an entry for
+        all entries.
+    metadata : dict, optional
+        The return of find_metadata
+
+    Returns
+    -------
+    attrs : dict
+        The combined metadata. Individual values may be combined
+        or over-ridden by the metadata value.
+
+    """
+
+    xmlattrs = xmlattrs.copy()
+
+    def append_values(k, v):
+        """Attend space-separated values"""
+
+        vals = xmlattrs[k].split() + v.split()
+        newvals = sorted(list(set(vals)))
+        return ' '.join(newvals)
+
+    if metadata is not None:
+        for k, v in metadata.items():
+
+            assert k in xmlattrs
+
+            # So we over-write or append?
+            #
+            if k in ['seealsogroups', 'displayseealsogroups', 'refkeywords']:
+                xmlattrs[k] = append_values(k, v)
+            else:
+                xmlattrs[k] = v
+
+    return xmlattrs
 
 
 def convert_docutils(name, doc, sig,
@@ -2347,32 +2396,13 @@ def convert_docutils(name, doc, sig,
 
     refkeywords = sorted(list(refkeywords))
 
-    xmlattrs = {'pkg': 'sherpa',
-                'key': name,
-                'refkeywords': ' '.join(refkeywords),
-                'seealsogroups': seealsotags,
-                'displayseealsogroups': displayseealsotags,
-                'context': None
-                }
-
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ['seealsogroups', 'displayseealsogroups']:
-                continue
-
-            assert k in xmlattrs
-
-            # special case refkeywords to append to the existing
-            # set
-            #
-            if k == 'refkeywords':
-                # repeats aren't really a problem but clean them up
-                # anyway
-                newkeys = (xmlattrs[k] + ' ' + v).split()
-                newkeys = sorted(list(set(newkeys)))
-                xmlattrs[k] = ' '.join(newkeys)
-            else:
-                xmlattrs[k] = v
+    xmlattrs = merge_metadata({'pkg': 'sherpa',
+                               'key': name,
+                               'refkeywords': ' '.join(refkeywords),
+                               'seealsogroups': seealsotags,
+                               'displayseealsogroups': displayseealsotags,
+                               'context': None},
+                              metadata)
 
     if xmlattrs['context'] is None:
         context = find_context(name, symbol)

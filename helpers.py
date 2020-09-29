@@ -10,6 +10,7 @@ from sherpa.astro.xspec import XSModel, XSAdditiveModel, XSMultiplicativeModel, 
 from sherpa.astro import ui
 
 from parsers.ahelp import find_metadata
+from parsers.docutils import merge_metadata
 
 
 def save_doc(outfile, xmldoc):
@@ -200,36 +201,17 @@ def list_xspec_models(outdir, dtd='ahelp'):
     else:
         raise RuntimeError('unknown dtd={}'.format(dtd))
 
-    xmlattrs = {'pkg': 'sherpa',
-                'key': 'xs',
-                'refkeywords': 'xspec models',
-                'seealsogroups': 'sh.models',
-                'displayseealsogroups': 'xsmodels',
-                'context': None
-                }
-
     metadata = find_metadata('xs')
     if metadata is None:
         raise IOError('no ahelp for XS')
 
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ['seealsogroups', 'displayseealsogroups']:
-                continue
-
-            assert k in xmlattrs
-
-            # special case refkeywords to append to the existing
-            # set
-            #
-            if k == 'refkeywords':
-                # repeats aren't really a problem but clean them up
-                # anyway
-                newkeys = (xmlattrs[k] + ' ' + v).split()
-                newkeys = sorted(list(set(newkeys)))
-                xmlattrs[k] = ' '.join(newkeys)
-            else:
-                xmlattrs[k] = v
+    xmlattrs = merge_metadata({'pkg': 'sherpa',
+                               'key': 'xs',
+                               'refkeywords': 'xspec models',
+                               'seealsogroups': 'sh.models',
+                               'displayseealsogroups': 'xsmodels',
+                               'context': None},
+                              metadata)
 
     if xmlattrs['context'] is None:
         raise IOError("No context for XS!")
@@ -548,36 +530,17 @@ def list_sherpa_models(outdir, dtd='ahelp'):
     else:
         raise RuntimeError('unknown dtd={}'.format(dtd))
 
-    xmlattrs = {'pkg': 'sherpa',
-                'key': 'models',
-                'refkeywords': 'sherpa models',
-                'seealsogroups': 'sh.models',
-                'displayseealsogroups': 'shmodels',
-                'context': None
-                }
-
     metadata = find_metadata('models')
     if metadata is None:
         raise IOError('no ahelp for XS')
 
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ['seealsogroups', 'displayseealsogroups']:
-                continue
-
-            assert k in xmlattrs
-
-            # special case refkeywords to append to the existing
-            # set
-            #
-            if k == 'refkeywords':
-                # repeats aren't really a problem but clean them up
-                # anyway
-                newkeys = (xmlattrs[k] + ' ' + v).split()
-                newkeys = sorted(list(set(newkeys)))
-                xmlattrs[k] = ' '.join(newkeys)
-            else:
-                xmlattrs[k] = v
+    xmlattrs = merge_metadata({'pkg': 'sherpa',
+                               'key': 'models',
+                               'refkeywords': 'sherpa models',
+                               'seealsogroups': 'sh.models',
+                               'displayseealsogroups': 'shmodels',
+                               'context': None},
+                              metadata)
 
     if xmlattrs['context'] is None:
         raise IOError("No context for XS!")
