@@ -484,8 +484,10 @@ def list_sherpa_models(outdir, dtd='ahelp'):
             models1.append(name)
         elif mclass.ndim == 2:
             models2.append(name)
+        elif name in ['absorptionvoigt', 'emissionvoigt']:
+            models1.append(name)
         else:
-            raise ValueError(mclass.ndim)
+            raise ValueError((name, mclass.ndim))
 
     def check(label, models):
         if len(models) == 0:
