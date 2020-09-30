@@ -2397,6 +2397,10 @@ def convert_docutils(name, doc, sig,
 
     refkeywords = sorted(list(refkeywords))
 
+    # so plot_bkg_ratio gets split to 'plot', 'bkg', 'ratio'
+    if '_' in name:
+        refkeywords += name.split('_')
+
     xmlattrs = merge_metadata({'pkg': 'sherpa',
                                'key': name,
                                'refkeywords': ' '.join(refkeywords),
