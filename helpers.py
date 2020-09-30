@@ -209,7 +209,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
                                'key': 'xs',
                                'refkeywords': 'xspec models',
                                'seealsogroups': 'sh.models',
-                               'displayseealsogroups': 'xsmodels',
+                               'displayseealsogroups': '',
                                'context': None},
                               metadata)
 
@@ -532,18 +532,18 @@ def list_sherpa_models(outdir, dtd='ahelp'):
 
     metadata = find_metadata('models')
     if metadata is None:
-        raise IOError('no ahelp for XS')
+        raise IOError('no ahelp for models')
 
     xmlattrs = merge_metadata({'pkg': 'sherpa',
                                'key': 'models',
                                'refkeywords': 'sherpa models',
                                'seealsogroups': 'sh.models',
-                               'displayseealsogroups': 'shmodels',
+                               'displayseealsogroups': '',
                                'context': None},
                               metadata)
 
     if xmlattrs['context'] is None:
-        raise IOError("No context for XS!")
+        raise IOError("No context for models!")
 
     def add_para(parent, text, title=None):
         out = ElementTree.SubElement(parent, 'PARA')
