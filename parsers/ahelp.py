@@ -55,35 +55,63 @@ def find_metadata(name, synonyms=None):
     if synonyms is not None:
         names += synonyms
 
-    tree = None
+    metadata = None
     for n in names:
         infile = os.path.join(home, 'share/doc/xml',
                               '{}.xml'.format(n))
         if os.path.isfile(infile):
             expected_key = n
-            tree = ElementTree.parse(infile)
+            metadata = read_metadata(infile)
             break
 
-    if tree is None:
+    if metadata is None:
         raise ValueError("Unable to find ahelp for {}".format(names))
 
     if name == 'group_sherpa':
         name = 'group'
         expected_key = 'group'
 
-    entry = tree.find('ENTRY')
-
-    pkg = entry.get('pkg')
+    pkg = metadata['pkg']
     if pkg != 'sherpa':
         raise IOError("Expected pkg=sherpa not {} in {}".format(pkg,
                                                                 names))
 
     # Need to deal with synonyms
-    key = entry.get('key')
+    key = metadata['key']
     if key != expected_key:
         raise IOError("Key/Name difference: {}/{}".format(key,
                                                           expected_key))
 
+    # NOTE: do not return the key retrieved from the file, in case it
+    #       is a synonym
+    #
+    return {'key': name,
+            'refkeywords': metadata['refkeywords'],
+            'seealsogroups': metadata['seealsogroups'],
+            'displayseealsogroups': metadata['displayseealsogroups'],
+            'context': metadata['context']}
+
+
+def read_metadata(infile):
+    """Extract the metadata from the ahelp file.
+
+    Parameters
+    ----------
+    infile : str
+        The path to the XML file.
+
+    Returns
+    -------
+    metadata : dict
+        The keywords are 'key', 'pkg', 'refkeywords', 'seelasogroups',
+        'displayseealsogroups', and 'context'.
+
+    """
+
+    tree = ElementTree.parse(infile)
+    entry = tree.find('ENTRY')
+    pkg = entry.get('pkg')
+    key = entry.get('key')
     refkeywords = entry.get('refkeywords')
     seealso = entry.get('seealsogroups')
     display = entry.get('displayseealsogroups')
@@ -98,7 +126,8 @@ def find_metadata(name, synonyms=None):
     # NOTE: do not return the key retrieved from the file, in case it
     #       is a synonym
     #
-    return {'key': name,
+    return {'key': key,
+            'pkg': pkg,
             'refkeywords': clean(refkeywords),
             'seealsogroups': clean(seealso),
             'displayseealsogroups': clean(display),
