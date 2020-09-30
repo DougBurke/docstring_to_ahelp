@@ -2070,7 +2070,8 @@ def find_context(name, symbol=None):
     # NOTE: some of these should get picked up from ahelp files
     #       (ie this is unneeded)
     #
-    if name in ['get_conf_results', 'get_conf_opt',
+    if name in ['get_conf_results', 'get_confidence_results',
+                'get_conf_opt',
                 'get_covar_results', 'get_covar_opt',
                 'get_proj_results', 'get_proj_opt']:
         return 'confidence'

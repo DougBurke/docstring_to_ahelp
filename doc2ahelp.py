@@ -89,6 +89,7 @@ def process_symbol(name, sym, dtd='ahelp',
 
 
 def convert(outdir, dtd='ahelp', modelsonly=False,
+            skip_synonyms=False,
             debug=False, restrict=None):
     """Convert the symbols.
 
@@ -101,6 +102,8 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
     modelsonly : bool, optional
         Only process Sherpa models (this will subset any values given
         in the restrict parameter if both are specified).
+    skip_synonyms : bool, optional
+        Should synonyms be skipped or not?
     debug : optional, boool
         If True then print out parsed versions of the symbols
         (expected to be used when restrict is not None but this
@@ -139,7 +142,7 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
             print(" - skipping as unwanted")
             continue
 
-        if name in synonyms:
+        if name in synonyms and skip_synonyms:
             print(" - skipping as a synonym for {}".format(synonyms[name]))
             continue
 
@@ -172,6 +175,14 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         except KeyError:
             syn_names = None
 
+        if name in synonyms:
+            # We want to treat this as if the synonym is the
+            # other way around (to get the 'Synonym: ...' output
+            # included).
+            #
+            assert syn_names is None
+            syn_names = [synonyms[name]]
+
         try:
             ahelp = find_metadata(name, synonyms=syn_names)
         except ValueError as exc:
@@ -196,6 +207,14 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
             syn_names = originals[name]
         except KeyError:
             syn_names = None
+
+        if name in synonyms:
+            # We want to treat this as if the synonym is the
+            # other way around (to get the 'Synonym: ...' output
+            # included).
+            #
+            assert syn_names is None
+            syn_names = [synonyms[name]]
 
         try:
             ahelp = find_metadata(name, synonyms=syn_names)

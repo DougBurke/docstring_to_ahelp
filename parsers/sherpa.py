@@ -278,7 +278,7 @@ def syms_from_module(modulename):
 
 
 def find_synonyms():
-    """Return the synonyn mapping.
+    """Return the synonym mapping.
 
     We have some routines available under different names - should all
     be long and short forms such as covariance/covar but I can not
