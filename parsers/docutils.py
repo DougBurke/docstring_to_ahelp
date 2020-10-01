@@ -2395,6 +2395,15 @@ def convert_docutils(name, doc, sig,
         refkeywords.add('absorption')
         refkeywords.add('emission')
 
+    # Special case the ahelp files that used to contain "multiple"
+    # commands - this is not all of them but these ones no-longer
+    # exist so I want to retain the knowledge for anyone used to
+    # 'ahelp get_fit'.
+    #
+    for oname in ['get_fit', 'get_kernel', 'get_ratio', 'get_resid']:
+        if name.startswith(f'{oname}_'):
+            refkeywords.add(oname)
+
     refkeywords = sorted(list(refkeywords))
 
     # so plot_bkg_ratio gets split to 'plot', 'bkg', 'ratio'
