@@ -51,6 +51,7 @@ def sym_to_docstring(name, sym):
 
     This is needed to work around some subtleties in how models
     are wrapped. It also applies known "corrections" to the docstring.
+    Fortunately there are no known required corrections.
 
     Parameters
     ----------
@@ -74,27 +75,7 @@ def sym_to_docstring(name, sym):
     if doc is None:
         return None
 
-    cdoc = cleandoc(doc)
-
-    if name == 'set_xsabund':
-        # Something is odd, so just hack around it. Fortunately
-        # adding in a new line fixes it.
-        #
-        sterm = 'The pre-defined abundance tables are:'
-        idx = cdoc.find(sterm)
-        if idx == -1:
-            raise ValueError("Unable to find {} in set_xsabund".format(sterm))
-
-        idx += len(sterm)
-        ldoc = cdoc[:idx]
-        rdoc = cdoc[idx:]
-        assert rdoc[0:2] == "\n ", rdoc[0:10]
-
-        # add in an extra new-line character
-        #
-        cdoc = ldoc + "\n" + rdoc
-
-    return cdoc
+    return cleandoc(doc)
 
 
 def sym_to_rst(name, sym):
