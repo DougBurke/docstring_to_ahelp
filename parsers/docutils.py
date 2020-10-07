@@ -2021,6 +2021,9 @@ def create_seealso(name, seealso, symbol=None):
     nlower = name.lower()
     pairs = [convert(nlower, s.lower()) for s in seealso]
 
+    # Sort the pairs to ensure ordering
+    pairs.sort()
+
     out = ' '.join(pairs)
     return out, dsg
 
