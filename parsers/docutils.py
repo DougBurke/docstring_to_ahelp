@@ -2251,9 +2251,11 @@ def convert_docutils(name, doc, sig,
         assert key in ['versionadded', 'versionchanged'], key
 
     # assume the versionchanged is in descending numerical order
+    # so we display the latest version first, and end up with the
+    # version-added information.
     #
     added = 0
-    for p in store_versions['versionchanged'][::-1]:
+    for p in store_versions['versionchanged']:
         versioninfo.append(p)
         added += 1
 
