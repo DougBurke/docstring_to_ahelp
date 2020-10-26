@@ -1907,36 +1907,37 @@ def extract_params(fieldinfo):
     else:
         p.text = 'The {}s for this {} are:'.format(value, name)
 
-    tbl = ElementTree.SubElement(adesc, 'TABLE')
+    if nparams > 0:
+        tbl = ElementTree.SubElement(adesc, 'TABLE')
 
-    # add a fake first row to set up the headers
-    #
-    row0 = ElementTree.SubElement(tbl, 'ROW')
-    ElementTree.SubElement(row0, 'DATA').text = value.capitalize()
-    ElementTree.SubElement(row0, 'DATA').text = 'Definition'
-
-    for par in parinfo:
-
-        row = ElementTree.SubElement(tbl, 'ROW')
-        ElementTree.SubElement(row, 'DATA').text = par['name']
-
-        # Keys are name, param, and type. At present type is not used.
-        #          name, ivar
+        # add a fake first row to set up the headers
         #
+        row0 = ElementTree.SubElement(tbl, 'ROW')
+        ElementTree.SubElement(row0, 'DATA').text = value.capitalize()
+        ElementTree.SubElement(row0, 'DATA').text = 'Definition'
 
-        if 'param' in par:
-            block = convert_field_body(par['param'])
-            text = block.text
+        for par in parinfo:
 
-        elif 'ivar' in par:
-            block = convert_field_body(par['ivar'])
-            text = block.text
+            row = ElementTree.SubElement(tbl, 'ROW')
+            ElementTree.SubElement(row, 'DATA').text = par['name']
 
-        else:
-            # Not description, so an empty paragraph.
-            text = ''
+            # Keys are name, param, and type. At present type is not used.
+            #          name, ivar
+            #
 
-        ElementTree.SubElement(row, 'DATA').text = text
+            if 'param' in par:
+                block = convert_field_body(par['param'])
+                text = block.text
+
+            elif 'ivar' in par:
+                block = convert_field_body(par['ivar'])
+                text = block.text
+
+            else:
+                # Not description, so an empty paragraph.
+                text = ''
+
+            ElementTree.SubElement(row, 'DATA').text = text
 
     if return_value is None:
         return adesc
