@@ -111,6 +111,11 @@ def check(xml_dir):
         if not all(flags):
             print(" - there are suprising errors")
 
+        for i, m in enumerate(miss):
+            print(f"  {i:2d}  name={m[0]}")
+
+        print("")
+
     if len(diff) > 0:
         print(f"# There were {len(diff)} difference(s).")
 
