@@ -263,3 +263,106 @@ can be used to access this parameter.</paragraph><paragraph>The default a, Mbh, 
 changed from 0, 1, 1.7, and 0 to 0.5, 1e7, 2.0, and 1 to match
 XSPEC.</paragraph></versionchanged>
 ```
+
+Once the errors are ironed out then you want to make a directory to
+store the results - probably versioned so that as CIAO is updated we can
+see changes:
+
+```
+% mkdir ahelp_xml1
+% ./docstring_to_ahelp/doc2ahelp.py ahelp_xml1 > log.ahelp_xml1
+copy_data - DBG: - copy_data has no SEE ALSO
+create_arf - NOTE: no text in DESC block
+get_conf - INFO: No parameters or return value
+get_conf_results - INFO: No parameters or return value
+get_confidence_results - INFO: No parameters or return value
+get_covar - INFO: No parameters or return value
+get_covar_results - INFO: No parameters or return value
+get_covariance_results - INFO: No parameters or return value
+get_functions - INFO: No parameters or return value
+get_proj - INFO: No parameters or return value
+get_proj_results - INFO: No parameters or return value
+get_projection_results - INFO: No parameters or return value
+get_sampler_name - INFO: No parameters or return value
+get_specresp - DBG: - get_specresp has no SEE ALSO
+get_split_plot - INFO: No parameters or return value
+get_split_plot - DBG: - get_split_plot has no SEE ALSO
+histogram1d - DBG: - histogram1d has no SEE ALSO
+histogram2d - DBG: - histogram2d has no SEE ALSO
+list_pileup_model_ids - NOTE: no text in DESC block
+list_psf_ids - NOTE: no text in DESC block
+rebin - DBG: - rebin has no SEE ALSO
+% ./docstring_to_ahelp/compare_ahelp_files.py ahelp_xml1
+
+Processing 722 XML files.
+# There were 13 new file(s).
+   0  name=xsagnslim
+   1  name=xszxipab
+   2  name=xslog10con
+   3  name=xszkerrbb
+   4  name=xslogconst
+   5  name=xsismdust
+   6  name=xsgrbjet
+   7  name=xsolivineabs
+   8  name=xsvwdem
+   9  name=xsvvwdem
+  10  name=xswdem
+  11  name=xsthcomp
+  12  name=xsbwcycl
+
+# There were 54 file(s) Sherpa found in CIAO but not new.
+   0  name=get_resid_prof_prefs  key=get_resid_prof_prefs
+   1  name=prof_fit_resid  key=prof_fit_resid
+   2  name=cstat  key=cstat
+   3  name=neldermead  key=neldermead
+   4  name=chi2gehrels  key=chi2gehrels
+   5  name=integrate  key=integrate
+   6  name=get_source_prof  key=get_source_prof
+   7  name=sherpa_utils  key=sherpa_utils
+   8  name=levmar  key=levmar
+   9  name=wstat  key=wstat
+  10  name=sherpa_contrib  key=sherpa_contrib
+  11  name=get_chart_spectrum  key=get_chart_spectrum
+  12  name=sherpa_chart  key=sherpa_chart
+  13  name=prof_fit  key=prof_fit
+  14  name=get_instmap_weights  key=get_instmap_weights
+  15  name=leastsq  key=leastsq
+  16  name=script  key=script
+  17  name=chi2datavar  key=chi2datavar
+  18  name=get_marx_spectrum  key=get_marx_spectrum
+  19  name=chi2constvar  key=chi2constvar
+  20  name=datastack  key=datastack
+  21  name=get_model_prof_prefs  key=get_model_prof_prefs
+  22  name=get_model_prof  key=get_model_prof
+  23  name=sherparc  key=sherparc
+  24  name=save_instmap_weights  key=save_instmap_weights
+  25  name=prof_resid  key=prof_resid
+  26  name=chi2modvar  key=chi2modvar
+  27  name=plot_instmap_weights  key=plot_instmap_weights
+  28  name=chi2xspecvar  key=chi2xspecvar
+  29  name=get_source_prof_prefs  key=get_source_prof_prefs
+  30  name=chisquare  key=chisquare
+  31  name=cash  key=cash
+  32  name=estimate_weighted_expmap  key=estimate_weighted_expmap
+  33  name=prof_delchi  key=prof_delchi
+  34  name=plot_marx_spectrum  key=plot_marx_spectrum
+  35  name=save_marx_spectrum  key=save_marx_spectrum
+  36  name=pyblocxs  key=pyblocxs
+  37  name=prof_model  key=prof_model
+  38  name=renorm  key=renorm
+  39  name=sherpa_marx  key=sherpa_marx
+  40  name=save_chart_spectrum  key=save_chart_spectrum
+  41  name=get_fit_prof  key=get_fit_prof
+  42  name=get_delchi_prof_prefs  key=get_delchi_prof_prefs
+  43  name=prof_data  key=prof_data
+  44  name=get_data_prof  key=get_data_prof
+  45  name=tablemodel  key=tablemodel
+  46  name=gridsearch  key=gridsearch
+  47  name=prof_source  key=prof_source
+  48  name=sherpa_profiles  key=sherpa_profiles
+  49  name=prof_fit_delchi  key=prof_fit_delchi
+  50  name=get_resid_prof  key=get_resid_prof
+  51  name=get_data_prof_prefs  key=get_data_prof_prefs
+  52  name=plot_chart_spectrum  key=plot_chart_spectrum
+  53  name=get_delchi_prof  key=get_delchi_prof
+```

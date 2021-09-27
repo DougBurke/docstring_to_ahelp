@@ -39,30 +39,22 @@ def save_doc(outfile, xmldoc):
         xmldoc.write(f, 'utf-8')
 
 
-def is_xspec_1211_model(sym):
-    """Is this a model introduced in XSPEC 12.11.0?"""
-
-    if sym.__doc__ is None:
-        return False
-
-    return sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
-
-
 def add_model_list(caption, models, xspec=True):
-    """Return a TABLE element describing the models."""
+    """Return a TABLE element describing the models.
+
+    This needs to be updated for each CIAO release.
+    """
 
     tbl = ElementTree.Element('TABLE')
     ElementTree.SubElement(tbl, 'CAPTION').text = caption
 
-    is_convolution = isinstance(getattr(ui, models[0]).modeltype(), XSConvolutionKernel)
-
     row0 = ElementTree.SubElement(tbl, 'ROW')
 
+    # Do we need to beef this up?
     has_new = False
-    if xspec and is_convolution:
-        has_new = True
 
-    if 'voigt1d' in models:
+    # hack for CIAO 4.14 as all three tables have new models
+    if xspec:
         has_new = True
 
     if has_new:
@@ -74,12 +66,6 @@ def add_model_list(caption, models, xspec=True):
     for name in sorted(models):
         sym = getattr(ui, name).modeltype
         desc = sym.__doc__.split("\n")[0]
-
-        # Unfortunately for CIAO 4.13 we need to stay with XSPEC 12.10.1,
-        # so we have to ignore the 12.11.0 models.
-        #
-        if is_xspec_1211_model(sym):
-            raise RuntimeError(f"SHOULD NOT HAVE GOT HERE: {name}")
 
         # Assume it is 'The XSPEC <> model: ...' but note that <> is
         # not necessarily the <> name (it should be)
@@ -105,23 +91,20 @@ def add_model_list(caption, models, xspec=True):
         # query the model's metadata but we don't encode this information.
         # So I just have to look for the string
         # 'This model is only available when used with XSPEC 12.11.0 or later.'
-        # OR if this is a convolution kernel
+        # as CIAO 4.13 went out with XSPEC 12.10.1s.
         #
-        """
         if xspec:
-            # We don't have the 12.11.0 models in CIAO 4.13
-            #
-            # new = isinstance(sym(), XSConvolutionKernel) or sym.__doc__.find('This model is only available when used with XSPEC 12.11.0 or later.') > -1
 
-            new = isinstance(sym(), XSConvolutionKernel)
+            doc = sym().__doc__
+            def is_new(major, minor, micro):
+                return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
 
+            new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
             ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
-        """
 
-        if xspec and is_convolution:
-            ElementTree.SubElement(row, 'DATA').text = 'NEW'
         elif has_new:
-            ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
+            raise NotImplementedError(name)  # do not expect this in 4.14.0
+            # ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
 
         ElementTree.SubElement(row, 'DATA').text = name
         ElementTree.SubElement(row, 'DATA').text = desc
@@ -167,9 +150,6 @@ def list_xspec_models(outdir, dtd='ahelp'):
             continue
 
         mclass = sym.modeltype
-        if is_xspec_1211_model(mclass):
-            continue
-
         if issubclass(mclass, XSAdditiveModel):
             add_models.append(name)
         elif issubclass(mclass, XSMultiplicativeModel):
@@ -224,8 +204,9 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    xspec_major_version = '12.10.1'
-    xspec_version = f'{xspec_major_version}s'
+    # No patch version in CIAO 4.14
+    xspec_major_version = '12.12.0'
+    xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
 
@@ -237,15 +218,16 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.13 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.14 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
     is "xscflux".
     ''')
 
-    add_para(desc, '''The additive (atable) and multiplicative (mtable) XSPEC
-    table models are supported by the load_xstable_model command.''',
+    add_para(desc, '''The additive (atable), multiplicative (mtable), and
+    exponential (etable) XSPEC table models are supported by the
+    load_xstable_model command.''',
              title='XSPEC table models')
 
     add_para(desc, '''XSPEC models based on physical processes (e.g. line models
@@ -270,7 +252,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     adesc = ElementTree.SubElement(entry, 'ADESC')
     adesc.set('title', 'Unavailable XSPEC models')
-    add_para(adesc, f'''The "smaug" model, "etable" table models, and the
+    add_para(adesc, f'''The "smaug" model and the
         mixing-model components of XSPEC {xspec_version}
         are NOT included in CIAO.''')
 
@@ -288,7 +270,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
        files describe the version of the XSPEC model included in
        CIAO, while the XSPEC User's Guide may reference a newer
        version with different options. If the first column is labelled NEW then
-       the model is new to CIAO 4.13.'''
+       the model is new to CIAO 4.14.'''
 
     adesc.append(atbl)
     adesc.append(mtbl)
@@ -318,30 +300,50 @@ sherpa> print(gal)
 xsphabs.gal
    Param        Type          Value          Min          Max      Units
    -----        ----          -----          ---          ---      -----
-   gal.nH       thawed            1            0       100000 10^22 atoms / cm^2
+   gal.nH       thawed            1            0        1e+06 10^22 atoms / cm^2
 sherpa> print(pl)
 xspowerlaw.pl
    Param        Type          Value          Min          Max      Units
    -----        ----          -----          ---          ---      -----
-   pl.PhoIndex  thawed            1           -2            9
+   pl.PhoIndex  thawed            1           -3           10
    pl.norm      thawed            1            0        1e+24
     """
+
+    adesc = ElementTree.SubElement(entry, 'ADESC')
+    adesc.set('title', 'Parameter limits')
+
+    add_para(adesc, '''A small number of XSPEC models support parameter
+    values outside the XSPEC hard-limit range, such as the
+    fpl parameter of xsoptxagn, which can be set to a negative value.
+    To support these models the hard-limits can be changed for
+    an XSPEC parameter with the hard_min and hard_max arguments
+    to the set method:''')
+
+    para = add_para(adesc, '')
+    syntax = ElementTree.SubElement(para, 'SYNTAX')
+    ElementTree.SubElement(syntax, 'LINE').text = "sherpa> create_model_component('xsoptxagn', 'cpt')"
+    ElementTree.SubElement(syntax, 'LINE').text = "sherpa> cpt.fpl.min"
+    ElementTree.SubElement(syntax, 'LINE').text = "0.0"
+    ElementTree.SubElement(syntax, 'LINE').text = "sherpa> cpt.fpl.set(hard_min=-1)"
+    ElementTree.SubElement(syntax, 'LINE').text = "sherpa> cpt.fpl.min"
+    ElementTree.SubElement(syntax, 'LINE').text = "-1.0"
+
+    add_para(adesc, '''It is strongly suggested that the parameter is frozen when
+    it is set outside the original limits.''')
 
     adesc = ElementTree.SubElement(entry, 'ADESC')
     adesc.set('title', 'Changing the chatter level of XSPEC models')
 
     add_para(adesc, '''The default chatter level for XSPEC models - i.e. how much information
-        they will print to the screen when evaluated - is set to 0, which
-        is lower than the default value used by XSPEC itself (10).
-        To check that the model is being evaluated correctly - e.g.
-        in case of a probem - then the set_xschatter routine can be
-        used to change the level. For example:''')
+        they will print to the screen when evaluated - is set to 10,
+        matching the default XSPEC version. The chatter setting can be
+        changed with set_xschatter - for example:''')
 
     para = add_para(adesc, '')
     syntax = ElementTree.SubElement(para, 'SYNTAX')
-    ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> set_xschatter(10)'
-    ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> plot_fit()'
     ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> set_xschatter(0)'
+    ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> plot_fit()'
+    ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> set_xschatter(10)'
 
     add_para(adesc, '''The current XSPEC chatter level is returned by the
         get_xschatter level.''')
@@ -399,18 +401,43 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
     adesc = ElementTree.SubElement(entry, 'ADESC')
-    adesc.set('title', 'Changes in CIO 4.13')
+    adesc.set('title', 'Changes in CIAO 4.14')
 
-    add_para(adesc, '''The XSPEC models bave been updated to release 12.10.1s
-    in CIAO 4.13, from version 12.10.1n in CIAO 4.12. Anyone who wants to use
-    models from XSPEC 12.11.1 will have to use the standalone version of Sherpa.
+    add_para(adesc, '''The XSPEC models have been updated to release 12.12.0
+    in CIAO 4.14, from version 12.10.1s in CIAO 4.13. There are a number of
+    new models:
     ''',
              title='XSPEC model updates')
 
-    add_para(adesc, '''XSPEC convolution models, such as xscflux and xszashift,
-    are now supported in Sherpa. Please review the ahelp files for these models
-    as they behave somewhat differently to additive and multiplicative models.''',
-             title='Convolution models')
+    outlist = ElementTree.SubElement(adesc, 'LIST')
+
+    out = ElementTree.SubElement(outlist, 'ITEM')
+    out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+
+    out = ElementTree.SubElement(outlist, 'ITEM')
+    out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
+
+    out = ElementTree.SubElement(outlist, 'ITEM')
+    out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
+
+    add_para(adesc, '''The parameter limits - that is the "Min" and "Max"
+    values reported by the print call - have been changed in CIAO 4.14
+    to use the XSPEC "hard-limit" range rather than the XSPEC "soft-limit"
+    range which was used in earlier versions. This can lead to changes to
+    fit results, and in routines like sample_energy_flux, for parameter
+    values that are not well constrained.''', title='Parameter changes')
+
+    add_para(adesc, '''For those rare models that require it, it is now
+    possible to change the minimum and maximum range of XSPEC parameters
+    by changing the hard_min or hard_max attribute of the parameter's
+    set method.''')
+
+    add_para(adesc, '''In CIAO 4.14 the default chatter setting is now 10,
+    matching the default behavior of XSPEC, rather than 0. This means that
+    the first time a model is evaluated you may see extra output,
+    but it should also help point out if your ~/.xspec/Xspec.init file
+    needs updating (e.g. for the ATOMDB_VERSION and NEI_VERSION settings).''',
+             title='The default chatter setting')
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
@@ -439,7 +466,7 @@ xspowerlaw.pl
 
 
     lastmod = ElementTree.SubElement(entry, 'LASTMODIFIED')
-    lastmod.text = 'December 2020'
+    lastmod.text = 'December 2021'
 
     suffix = 'sxml' if dtd == 'sxml' else 'xml'
     outfile = os.path.join(outdir, 'xs.{}'.format(suffix))
@@ -611,7 +638,7 @@ def list_sherpa_models(outdir, dtd='ahelp'):
     href.tail = ' for an up-to-date listing of known bugs.'
 
     lastmod = ElementTree.SubElement(entry, 'LASTMODIFIED')
-    lastmod.text = 'December 2020'
+    lastmod.text = 'December 2021'
 
     suffix = 'sxml' if dtd == 'sxml' else 'xml'
     outfile = os.path.join(outdir, 'models.{}'.format(suffix))
