@@ -9,13 +9,13 @@ TODO:
 
 """
 
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 import re
 import sys
 
-from docutils import nodes
-
 from xml.etree import ElementTree
+
+from docutils import nodes
 
 from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
@@ -40,6 +40,7 @@ def convert_version_number(v):
     Not all Sherpa releases map to a CIAO release.
 
     CIAO releases:
+       4.13
        4.12.1
        4.12
        4.11
@@ -57,6 +58,8 @@ def convert_version_number(v):
     if toks[2] == '0':
         # Generic naming, drop the .0
         return '{}.{}'.format(toks[0], toks[1])
+    elif v.startswith('4.13.'):
+        return '4.14'
     elif v == '4.12.2':
         return '4.13'
     elif v == '4.10.1':
@@ -789,8 +792,16 @@ def convert_versionwarning(block):
     #
     assert all([is_para(n) for n in block]), block
 
-    nblock = len(block)
+    # Note: I have no idea what the structure here is - i.e.
+    # can we have multiple blocks or multiple elements
+    # within a block. So this is just a bunch of
+    # "logic" written to handle whatever we find...
+    #
+    # nblock = len(block)
+    # if nblock != 1:
+    #     raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
 
+    # The assumption is that the first token is the version
     b0 = astext(block[0])
     toks = b0.split(maxsplit=1)
 
@@ -801,13 +812,18 @@ def convert_versionwarning(block):
     out.set('title', title)
 
     if len(toks) > 1:
-        assert nblock == 1, block
         out.text = toks[1]
 
-    if nblock != 1:
-        raise RuntimeError("Need to handle multi-para versionxxx block: {}".format(block))
-
     store_versions[block.tagname].append(out)
+
+    for blk in block[1:]:
+        if not is_para(blk):
+            raise RuntimeError(blk)
+
+        out = ElementTree.Element("PARA")
+        out.text = astext(blk)
+        store_versions[block.tagname].append(out)
+
     return None
 
 
@@ -1473,9 +1489,11 @@ def find_notes(name, indoc):
 
     Notes
     -----
-    If this is a note to say that this model is only available with
-    XSPEC >= n then we strip it out, since the CIAO build has a known
-    version.
+    If this is a note to say that this XSPEC model is only available
+    with a given XSPEC version then we
+
+    - if it's old, ignore it
+    - if it's new, add it to the versionadded store instead
 
     """
 
@@ -1505,10 +1523,6 @@ def find_notes(name, indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
-    # Actually, changing the "only in 12.10.0 or later" to a
-    # "new in CIAO 4.11" section. Unfortunately do not seem to have
-    # any like this.
-    #
     def version(v):
         return 'This model is only available when used with ' + \
             'XSPEC {} or later.'.format(v)
@@ -1517,9 +1531,13 @@ def find_notes(name, indoc):
     v12100 = version('12.10.0')
     v12101 = version('12.10.1')
     v12110 = version('12.11.0')  # there's no 12.11.1 only models
+    v12120 = version('12.12.0')
 
+    # First remove all the old "added in XSPEC x.y.z" lines
+    #
     def wanted(n):
         txt = n.astext()
+        # return n.astext() not in [v1291, v12100, v12101, v12110, v12120]
         return n.astext() not in [v1291, v12100, v12101]
 
     lnodes = list(filter(wanted, lnodes))
@@ -1527,38 +1545,59 @@ def find_notes(name, indoc):
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
 
+    # We now need to decide whether this is text we want to output
+    # or something we want to change into a 'versionadded' commant.
+    #
+    # Do we have an XSPEC version relevant to this CIAO release?
+    #
     # CIAO 4.12 used 12.10.1
     # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
     #   but we are only going out with XSPEC 12.10.1
+    # CIAO 4.14 uses 12.12.0
     #
-    # Identify if we have a <this version is new> line.
+    has_version_12110 = False
+    has_version_12120 = False
+
+    any_notes = False
+    out = ElementTree.Element("ADESC", {'title': 'Notes'})
+
+    # Do we want to process the contents or add them as a versionadded entry?
     #
-    has_version = False
-    for para in lnodes:
-        has_version |= para.astext() == v12110
-
-    if has_version:
-        # because we've dropped back to XSPEC 12.10.1 I just want to
-        # make sure we have no new blocks like this
-        raise RuntimeError("This model should not be being processed")
-
-        out = ElementTree.Element("ADESC", {'title': 'New in CIAO 4.13'})
-        para = ElementTree.SubElement(out, 'PARA')
-        para.text = 'The {} model '.format(name) + \
-                    '(added in XSPEC 12.11.0) is new in CIAO 4.13.'
-
-    else:
-        out = ElementTree.Element("ADESC", {'title': 'Notes'})
-
     for para in lnodes:
         if para.astext() == v12110:
+            has_version_12110 = True
+            continue
+
+        if para.astext() == v12120:
+            has_version_12120 = True
             continue
 
         for b in make_para_blocks(para):
             out.append(b)
 
-    assert len(out) > 0
-    return out, rnodes
+        any_notes = True
+
+    if has_version_12110 | has_version_12120:
+        if len(store_versions['versionadded']) > 0:
+            # we special case the thcomp description as the
+            # ..versionadded:: 4.12.2 line isn't meaningful here.
+            #
+            if name == 'xsthcomp':
+                store_versions['versionadded'] = []
+            else:
+                raise RuntimeError("Multiple versions added")
+
+        para = ElementTree.Element("PARA", {'title': 'New in CIAO 4.14'})
+        vstr = '12.11.0' if has_version_12110 else '12.12.0'
+        para.text = f'The {name} model (added in XSPEC {vstr}) is new in CIAO 4.14.'
+
+        store_versions['versionadded'].append(para)
+
+    if any_notes:
+        assert len(out) > 0
+        return out, rnodes
+    else:
+        return None, rnodes
 
 
 def find_warning(indoc):
@@ -1805,7 +1844,9 @@ def find_examples(indoc):
         #
         name = para.tagname
         assert name in ['paragraph', 'doctest_block',
-                        'block_quote', 'literal_block'], para
+                        'block_quote', 'literal_block',
+                        'bullet_list'  # integrate1d in CIAO 4.14
+                        ], para
 
         if desc is None:
             # Can we identify a sentence that is actually
@@ -1828,14 +1869,22 @@ def find_examples(indoc):
             # it's easier to do here, if uglier.
             #
             assert isinstance(p, ElementTree.Element)
-            assert p.tag in ['PARA', 'VERBATIM'], p.tag
 
-            p.text = convert_example_text(p.text)
+            if p.tag in ['PARA', 'VERBATIM']:
+                p.text = convert_example_text(p.text)
+
+            elif p.tag == 'LIST':
+                for item in p:
+                    item.text = convert_example_text(item.text)
+
+            else:
+                raise RuntimeError(f"Did not expect {p.tag} in example text")
+
             desc.append(p)
 
         # Do we start a new example?
         #
-        if name != 'paragraph':
+        if name not in ['paragraph', 'bullet_list']:
             desc = None
 
     return out, rnodes
@@ -2204,7 +2253,7 @@ def convert_docutils(name, doc, sig,
         The AHELP metadata for this file (the return value of
         parsers.ahelp.find_metadata).
     synonmys : list of str or None
-        The synonums available for this symbol. It is expected that,
+        The synonyms available for this symbol. It is expected that,
         if given, the array has one element but do not require it
         (but the array must not be empty if given).
     dtd : {'ahelp', 'sxml'}, optional
@@ -2242,45 +2291,9 @@ def convert_docutils(name, doc, sig,
     synopsis, refkeywords, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
 
-    # Do we have versionadded/changed data?
-    #
-    # stick them into a single ADESC block
-    versioninfo = ElementTree.Element('ADESC')
-    versioninfo.set('title', 'Changes in CIAO')
-
-    for key in store_versions.keys():
-        assert key in ['versionadded', 'versionchanged'], key
-
-    # assume the versionchanged is in descending numerical order
-    # so we display the latest version first, and end up with the
-    # version-added information.
-    #
-    added = 0
-    for p in store_versions['versionchanged']:
-        versioninfo.append(p)
-        added += 1
-
-    for p in store_versions['versionadded']:
-        versioninfo.append(p)
-
-        # special case the Voigt1D / PseudoVoigt1D models for CIAO 4.13
-        #
-        if name in ['pseudovoigt1d', 'voigt1d']:
-            assert p.text is None
-            p.text = 'The pseudovoigt1d and voigt1d models have been added in CIAO 4.13 ' + \
-                     'and replace the absorptionvoigt and emissionvoigt models.'
-
-        added += 1
-
-    if added == 0:
-        versioninfo = None
-
-    # Ensure we don't come across any more versionxxx tags
-    store_versions['DONE'] = []
-
-    # For XSPEC models, add a note about additive or multiplicative to
-    # the SYNTAX block (could go in the description but let's try
-    # here for now).
+    # For XSPEC models, add a note about
+    # additive/multiplicative/convolution to the SYNTAX block (could
+    # go in the description but let's try here for now).
     #
     if isinstance(symbol, ModelWrapper) and \
        issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel)):
@@ -2380,6 +2393,57 @@ def convert_docutils(name, doc, sig,
     #
     seealsotags, displayseealsotags = create_seealso(name, seealso, symbol=symbol)
 
+    # Do we have versionadded/changed data?
+    #
+    # stick them into a single ADESC block
+    versioninfo = ElementTree.Element('ADESC')
+    versioninfo.set('title', 'Changes in CIAO')
+
+    for key in store_versions.keys():
+        assert key in ['versionadded', 'versionchanged'], key
+
+    # assume the versionchanged is in descending numerical order
+    # so we display the latest version first, and end up with the
+    # version-added information.
+    #
+    # There's a hack for a CIAO 4.14 case where we have both a added and changed for 4.14,
+    # since in this case we can drop the changed info
+    #
+    added = 0
+
+    # This is hard-coded to the cases I nkow about
+    skippy1 = [p.get('title') == 'Changed in CIAO 4.14' for p in store_versions['versionchanged']]
+    skippy2 = [p.get('title') == 'New in CIAO 4.14' for p in store_versions['versionadded']]
+    if any(skippy1) and any(skippy2):
+        if name not in ['xsagnslim', 'xsbwcycl', 'xszkerrbb']:
+            raise RuntimeError("problem")
+
+        store_versions['versionchanged'] = []
+
+    for p in store_versions['versionchanged']:
+        versioninfo.append(p)
+        added += 1
+
+    for p in store_versions['versionadded']:
+        versioninfo.append(p)
+
+        # special case the Voigt1D / PseudoVoigt1D models for CIAO 4.13
+        #
+        if name in ['pseudovoigt1d', 'voigt1d']:
+            assert p.text is None
+            p.text = 'The pseudovoigt1d and voigt1d models have been added in CIAO 4.13 ' + \
+                     'and replace the absorptionvoigt and emissionvoigt models.'
+
+        added += 1
+
+    if added == 0:
+        versioninfo = None
+
+    # Ensure we don't come across any more versionxxx tags
+    # - although now we've changed the processing it isn't
+    #   really useful
+    store_versions['DONE'] = []
+
     # Create the output
     #
     rootname = None
@@ -2393,6 +2457,8 @@ def convert_docutils(name, doc, sig,
     root = ElementTree.Element(rootname)
     outdoc = ElementTree.ElementTree(root)
 
+    # These should now be included
+    """
     # Special case the refkeywords for [pseudo]voigt1d
     #
     if name in ['pseudovoigt1d', 'voigt1d']:
@@ -2409,6 +2475,13 @@ def convert_docutils(name, doc, sig,
     for oname in ['get_fit', 'get_kernel', 'get_ratio', 'get_resid']:
         if name.startswith(f'{oname}_'):
             refkeywords.add(oname)
+    """
+
+    # special case a few of the new XSPEC models
+    #
+    if name == 'xszkerrbb':
+        refkeywords.add('kerrbb')
+        refkeywords.add('xskerrbb')
 
     refkeywords = sorted(list(refkeywords))
 
@@ -2454,8 +2527,8 @@ def convert_docutils(name, doc, sig,
         xspec = ElementTree.SubElement(entry, 'ADESC',
                                        {'title': 'XSPEC version'})
         xpara = ElementTree.SubElement(xspec, 'PARA')
-        xpara.text = 'CIAO 4.13 comes with support for version ' + \
-                     '12.10.1s of the XSPEC models. This can be ' + \
+        xpara.text = 'CIAO 4.14 comes with support for version ' + \
+                     '12.12.0 of the XSPEC models. This can be ' + \
                      'checked with the following:'
 
         cstr = "% python -c 'from sherpa.astro import xspec; " + \
@@ -2464,7 +2537,7 @@ def convert_docutils(name, doc, sig,
         xpara2 = ElementTree.SubElement(xspec, 'PARA')
         xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
         ElementTree.SubElement(xsyn, 'LINE').text = cstr
-        ElementTree.SubElement(xsyn, 'LINE').text = '12.10.1s'
+        ElementTree.SubElement(xsyn, 'LINE').text = '12.12.0'
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
@@ -2474,6 +2547,6 @@ def convert_docutils(name, doc, sig,
     link.text = 'bugs pages on the Sherpa website'
     link.tail = ' for an up-to-date listing of known bugs.'
 
-    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2020'
+    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2021'
 
     return outdoc
