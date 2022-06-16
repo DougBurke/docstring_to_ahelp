@@ -139,6 +139,42 @@ def is_para(node):
 XSMODEL_RE = re.compile('^XS[a-z0-9]+$')
 
 
+# Just check that we understand the lniks between reference and target
+# nodes. This is really "just for fun".
+#
+references = set()
+
+def process_reference(node):
+    """Extract the text and link from a reference node."""
+
+    assert node.tagname == "reference"
+    name = node.get("name")
+
+    # Hmmm, we can have this multiple times, and I am not sure why
+    # (is it that the code gets re-run without clearing the references
+    # store?)
+    #if name in references:
+    #    raise ValueError(f"Multiple name={name} are being set; is this a problem?\n{node}")
+
+    if name is not None:
+        references.add(name.lower())
+
+    return node.astext(), node.get("refuri")
+
+
+def process_target(node):
+    """Check we know about this target."""
+
+    # It looks like we only get these when the reference tag set its
+    # name attribute.
+    #
+    assert node.tagname == "target"
+    names = node.get("names")
+    assert len(names) == 1  # I guess could have multipe
+    if names[0].lower() not in references:
+        raise ValueError(f"Found un-referenced target block '{names[0]}':\n{node}")
+
+
 def astext(node):
     """Extract the text contents of the node.
 
@@ -190,10 +226,10 @@ def astext(node):
 
         return "{} {}".format(ctr, cts)
 
-    elif node.tagname == 'footnote_reference':
+    if node.tagname == 'footnote_reference':
         return "[{}]".format(node.astext())
 
-    elif node.tagname == 'title_reference':
+    if node.tagname == 'title_reference':
         # Limited support: hard-coded to match the current documentation
         # as it's not obvious it's easy to fix.
         #
@@ -201,13 +237,13 @@ def astext(node):
 
         if out == 'sherpa.models.model.ArithmeticModel':
             return "`ArithmeticModel`"
-        elif out == 'sherpa.models.parameter.Parameter':
+        if out == 'sherpa.models.parameter.Parameter':
             return "`Parameter`"
-        elif out == 'sherpa.instrument.PSFModel':
+        if out == 'sherpa.instrument.PSFModel':
             return 'psfmodel'
-        elif out == 'sherpa.astro.models.JDPileup':
+        if out == 'sherpa.astro.models.JDPileup':
             return 'jdpileup'
-        elif out.startswith('sherpa.astro.ui.'):
+        if out.startswith('sherpa.astro.ui.'):
             out = out[16:]
             if out.startswith('utils.'):
                 out = out[6:]
@@ -219,7 +255,7 @@ def astext(node):
 
         return "`{}`".format(out)
 
-    elif node.tagname == 'literal':
+    if node.tagname == 'literal':
         # Limited speacial case here:
         #   leave non-Sherpa names as is (hard-coded to True, False, StringIO at the momnt)
         #   XSmodel -> xsmodel
@@ -239,13 +275,26 @@ def astext(node):
 
         return out.lower()
 
-    elif node.tagname == 'emphasis':
+    if node.tagname == 'emphasis':
         # what should be done here?
         return node.astext()
 
-    elif node.tagname == 'strong':
+    if node.tagname == 'strong':
         # what should be done here?
         return node.astext()
+
+    if node.tagname == "reference":
+        # Sometimes we can make targets into a link,
+        # and sometimes we can't. However, not
+        # sure we ever get to here so just error out.
+        #
+        txt = make_href_text(node)
+        raise NotImplementedError(f"Unexpected reference: {txt}")
+
+    if node.tagname == "target":
+        # assume we can just skip this
+        process_target(node)
+        return ""
 
     assert node.tagname in ['paragraph', 'list_item',
                             'enumerated_list'], node
@@ -284,7 +333,46 @@ def make_syntax_block(lines):
     return syn
 
 
-def convert_para(para):
+def make_href(node):
+    """Create a HREF block from a reference node.
+
+    Parameters
+    ----------
+    node
+
+    Returns
+    -------
+    el : ElementTree.Element
+        The HREF block
+    """
+
+    txt, uri = process_reference(node)
+
+    href = ElementTree.Element("HREF")
+    href.text = txt
+    href.set("link", uri)
+
+    return href
+
+
+def make_href_text(node):
+    """Create text from a reference node.
+
+    Parameters
+    ----------
+    node
+
+    Returns
+    -------
+    txt : str
+        The contents of the node with no markup
+    """
+
+    txt, uri = process_reference(node)
+    return f"{txt} [{uri}]"
+
+
+def convert_para(para, complex=True):
     """Add the paragraph to the ahelp PARA block.
 
     Parameters
@@ -292,6 +380,10 @@ def convert_para(para):
     para : docutils.node
         The contents to add. It is expected to be paragraph but
         can be other specialized cases
+    complex : bool, optional
+        If set then the paragraph can contain HREF blocks,
+        otherwise only plain text (this does not fully model
+        the PARA block, but is hopefully sufficient for us).
 
     Returns
     -------
@@ -303,8 +395,10 @@ def convert_para(para):
 
     Notes
     -----
-    This is an expensive way of calling para.astext() but lets me
-    note what non-text nodes we have to deal with.
+    This is an expensive way of calling para.astext() but lets me note
+    what non-text nodes we have to deal with. With support for
+    references it has become a bit-more complex.
+
     """
 
     text = []
@@ -314,13 +408,49 @@ def convert_para(para):
         msg = "- paragraph handling {}".format(para.tagname)
         dbg(msg)
 
-    for n in para:
-        text.append(astext(n))
-        # name = n.tagname
-        # ntxt = astext(n)
-
+    # Handling of the text is a bit complex now that we handle
+    # HREF links.
+    #
     out = ElementTree.Element("PARA")
-    out.text = "\n".join(text)
+    href = None
+
+    refs = []
+    for n in para:
+
+        if n.tagname == "target":
+            # Assume we can just skip this.
+            #
+            process_target(n)
+            continue
+
+        if n.tagname == "reference":
+
+            # Do we make an XML tag or just add text?
+            #
+            if not complex:
+                txt, uri = process_reference(n)
+                text.append(make_href_text(n))
+                continue
+
+            if href is None:
+                out.text = "\n".join(text)
+            else:
+                href.tail = "\n".join(text)
+
+            text = []
+
+            href = make_href(n)
+            out.append(href)
+
+            continue
+
+        text.append(astext(n))
+
+    if href is None:
+        out.text = "\n".join(text)
+    else:
+        href.tail = "\n".join(text)
+
     return out
 
 
@@ -908,7 +1038,7 @@ def convert_field_body(fbody):
         # do we want this?
         return ElementTree.Element('PARA')
     elif n == 1:
-        return convert_para(fbody[0])
+        return convert_para(fbody[0], complex=False)
     else:
         raise ValueError("Need to handle {} blocks".format(n))
 

@@ -200,7 +200,7 @@ Processing 713 XML files.
 
 ## Debugging
 
-Unfortunately the followint report isn't very useful (note that the
+Unfortunately the following report isn't very useful (note that the
 skipping metadata line is not the cause of the error):
 
 ```
