@@ -21,6 +21,11 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
+CIAOVER = "CIAO 4.15"
+XSPECVER = "12.12.0"
+LASTMOD = "December 2022"
+
+
 objname = '<unset>'
 
 
@@ -40,6 +45,8 @@ def convert_version_number(v):
     Not all Sherpa releases map to a CIAO release.
 
     CIAO releases:
+       4.15
+       4.14
        4.13
        4.12.1
        4.12
@@ -58,6 +65,8 @@ def convert_version_number(v):
     if toks[2] == '0':
         # Generic naming, drop the .0
         return '{}.{}'.format(toks[0], toks[1])
+    elif v.startswith('4.14.'):
+        return '4.15'
     elif v.startswith('4.13.'):
         return '4.14'
     elif v == '4.12.2':
@@ -1663,17 +1672,36 @@ def find_notes(name, indoc):
     v12110 = version('12.11.0')  # there's no 12.11.1 only models
     v12120 = version('12.12.0')
 
+    # I want to warn about 12.12.1 models, but it turns out in
+    # CIAO 4.15 we don't support the three new models, as they
+    # require XFLT changes we currently do not support.
+    # I leave this in as a reminder.
+    #
+    v12121 = version('12.12.1')
+
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        # return n.astext() not in [v1291, v12100, v12101, v12110, v12120]
-        return n.astext() not in [v1291, v12100, v12101]
+        # return txt not in [v1291, v12100, v12101, v12110, v12120]
+        return txt not in [v1291, v12100, v12101]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
+
+    # What happens if this is a 12.12.1 only model? It is not
+    # supported in CIAO 4.15 so we have to remove it. However
+    # we do not expect this
+    #
+    def not_wanted(n):
+        txt = n.astext()
+        return txt == v12121
+
+    unodes = list(filter(not_wanted, lnodes))
+    if len(unodes) > 0:
+        raise RuntimeError(f"ERR: looks like {name} is unsupported in CIAO")
 
     # We now need to decide whether this is text we want to output
     # or something we want to change into a 'versionadded' commant.
@@ -1684,6 +1712,7 @@ def find_notes(name, indoc):
     # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
     #   but we are only going out with XSPEC 12.10.1
     # CIAO 4.14 uses 12.12.0
+    # CIAO 4.15 uses 12.12.0
     #
     has_version_12110 = False
     has_version_12120 = False
@@ -1717,11 +1746,12 @@ def find_notes(name, indoc):
             else:
                 raise RuntimeError("Multiple versions added")
 
-        para = ElementTree.Element("PARA", {'title': 'New in CIAO 4.14'})
-        vstr = '12.11.0' if has_version_12110 else '12.12.0'
-        para.text = f'The {name} model (added in XSPEC {vstr}) is new in CIAO 4.14.'
+        # Not needed in CIAO 4.15
+        ## para = ElementTree.Element("PARA", {'title': 'New in CIAO 4.14'})
+        ## vstr = '12.11.0' if has_version_12110 else '12.12.0'
+        ## para.text = f'The {name} model (added in XSPEC {vstr}) is new in CIAO 4.14.'
 
-        store_versions['versionadded'].append(para)
+        ## store_versions['versionadded'].append(para)
 
     if any_notes:
         assert len(out) > 0
@@ -2561,7 +2591,7 @@ def convert_docutils(name, doc, sig,
         #
         if name in ['pseudovoigt1d', 'voigt1d']:
             assert p.text is None
-            p.text = 'The pseudovoigt1d and voigt1d models have been added in CIAO 4.13 ' + \
+            p.text = 'The pseudovoigt1d and voigt1d models were added in CIAO 4.13 ' + \
                      'and replace the absorptionvoigt and emissionvoigt models.'
 
         added += 1
@@ -2657,8 +2687,8 @@ def convert_docutils(name, doc, sig,
         xspec = ElementTree.SubElement(entry, 'ADESC',
                                        {'title': 'XSPEC version'})
         xpara = ElementTree.SubElement(xspec, 'PARA')
-        xpara.text = 'CIAO 4.14 comes with support for version ' + \
-                     '12.12.0 of the XSPEC models. This can be ' + \
+        xpara.text = f'{CIAOVER} comes with support for version ' + \
+                     f'{XSPECVER} of the XSPEC models. This can be ' + \
                      'checked with the following:'
 
         cstr = "% python -c 'from sherpa.astro import xspec; " + \
@@ -2667,7 +2697,7 @@ def convert_docutils(name, doc, sig,
         xpara2 = ElementTree.SubElement(xspec, 'PARA')
         xsyn = ElementTree.SubElement(xpara2, 'SYNTAX')
         ElementTree.SubElement(xsyn, 'LINE').text = cstr
-        ElementTree.SubElement(xsyn, 'LINE').text = '12.12.0'
+        ElementTree.SubElement(xsyn, 'LINE').text = XSPECVER
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
     para = ElementTree.SubElement(bugs, 'PARA')
@@ -2677,6 +2707,6 @@ def convert_docutils(name, doc, sig,
     link.text = 'bugs pages on the Sherpa website'
     link.tail = ' for an up-to-date listing of known bugs.'
 
-    ElementTree.SubElement(entry, 'LASTMODIFIED').text = 'December 2021'
+    ElementTree.SubElement(entry, 'LASTMODIFIED').text = LASTMOD
 
     return outdoc

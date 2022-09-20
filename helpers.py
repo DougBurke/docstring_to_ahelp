@@ -13,6 +13,10 @@ from parsers.ahelp import find_metadata
 from parsers.docutils import merge_metadata
 
 
+# CIAO 4.15
+LASTMOD = "December 2022"
+
+
 def save_doc(outfile, xmldoc):
     """Write the ahelp XML to a file.
 
@@ -57,6 +61,10 @@ def add_model_list(caption, models, xspec=True):
     if xspec:
         has_new = True
 
+    # but in CIAO 4.15 we still use XSPEC 12.12.0 so back to
+    if xspec:
+        has_new = False
+
     if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
 
@@ -100,9 +108,16 @@ def add_model_list(caption, models, xspec=True):
                 return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
 
             new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
-            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+
+            new = False  # special case CIAO 4.15
+
+            # As we are not showing the new column we don't do this
+            # ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
 
         elif has_new:
+            # Note: at the moment CIAO 4.15 has the same XSPEC model as
+            # CIAO 4.14, namely XSPEC 12.12.0.
+            #
             raise NotImplementedError(name)  # do not expect this in 4.14.0
             # ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
 
@@ -204,7 +219,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    # No patch version in CIAO 4.14
+    # No patch version in CIAO 4.15
     xspec_major_version = '12.12.0'
     xspec_version = f'{xspec_major_version}'
 
@@ -218,7 +233,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.14 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.15 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
@@ -271,6 +286,12 @@ def list_xspec_models(outdir, dtd='ahelp'):
        CIAO, while the XSPEC User's Guide may reference a newer
        version with different options. If the first column is labelled NEW then
        the model is new to CIAO 4.14.'''
+
+    # Overwrite for CIAO 4.15
+    href.tail = '''for more information.  Note that the ahelp
+       files describe the version of the XSPEC model included in
+       CIAO, while the XSPEC User's Guide may reference a newer
+       version with different options.'''
 
     adesc.append(atbl)
     adesc.append(mtbl)
@@ -400,44 +421,39 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> xspec.get_xsversion()'
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
-    adesc = ElementTree.SubElement(entry, 'ADESC')
-    adesc.set('title', 'Changes in CIAO 4.14')
+    # leave this so I now waht to do in CIAO 4.16
+    if False:
+        adesc = ElementTree.SubElement(entry, 'ADESC')
+        adesc.set('title', 'Changes in CIAO 4.14')
 
-    add_para(adesc, '''The XSPEC models have been updated to release 12.12.0
-    in CIAO 4.14, from version 12.10.1s in CIAO 4.13. There are a number of
-    new models:
-    ''',
-             title='XSPEC model updates')
+        add_para(adesc, '''The XSPEC models have been updated to release 12.12.0
+        in CIAO 4.14, from version 12.10.1s in CIAO 4.13. There are a number of
+        new models:
+        ''',
+                 title='XSPEC model updates')
 
-    outlist = ElementTree.SubElement(adesc, 'LIST')
+        outlist = ElementTree.SubElement(adesc, 'LIST')
 
-    out = ElementTree.SubElement(outlist, 'ITEM')
-    out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
 
-    out = ElementTree.SubElement(outlist, 'ITEM')
-    out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
 
-    out = ElementTree.SubElement(outlist, 'ITEM')
-    out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
 
-    add_para(adesc, '''The parameter limits - that is the "Min" and "Max"
-    values reported by the print call - have been changed in CIAO 4.14
-    to use the XSPEC "hard-limit" range rather than the XSPEC "soft-limit"
-    range which was used in earlier versions. This can lead to changes to
-    fit results, and in routines like sample_energy_flux, for parameter
-    values that are not well constrained.''', title='Parameter changes')
+        add_para(adesc, '''The parameter limits - that is the "Min" and "Max"
+        values reported by the print call - have been changed in CIAO 4.14
+        to use the XSPEC "hard-limit" range rather than the XSPEC "soft-limit"
+        range which was used in earlier versions. This can lead to changes to
+        fit results, and in routines like sample_energy_flux, for parameter
+        values that are not well constrained.''', title='Parameter changes')
 
-    add_para(adesc, '''For those rare models that require it, it is now
-    possible to change the minimum and maximum range of XSPEC parameters
-    by changing the hard_min or hard_max attribute of the parameter's
-    set method.''')
-
-    add_para(adesc, '''In CIAO 4.14 the default chatter setting is now 10,
-    matching the default behavior of XSPEC, rather than 0. This means that
-    the first time a model is evaluated you may see extra output,
-    but it should also help point out if your ~/.xspec/Xspec.init file
-    needs updating (e.g. for the ATOMDB_VERSION and NEI_VERSION settings).''',
-             title='The default chatter setting')
+        add_para(adesc, '''For those rare models that require it, it is now
+        possible to change the minimum and maximum range of XSPEC parameters
+        by changing the hard_min or hard_max attribute of the parameter's
+        set method.''')
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
@@ -466,7 +482,7 @@ xspowerlaw.pl
 
 
     lastmod = ElementTree.SubElement(entry, 'LASTMODIFIED')
-    lastmod.text = 'December 2021'
+    lastmod.text = LASTMOD
 
     suffix = 'sxml' if dtd == 'sxml' else 'xml'
     outfile = os.path.join(outdir, 'xs.{}'.format(suffix))
@@ -638,7 +654,7 @@ def list_sherpa_models(outdir, dtd='ahelp'):
     href.tail = ' for an up-to-date listing of known bugs.'
 
     lastmod = ElementTree.SubElement(entry, 'LASTMODIFIED')
-    lastmod.text = 'December 2021'
+    lastmod.text = LASTMOD
 
     suffix = 'sxml' if dtd == 'sxml' else 'xml'
     outfile = os.path.join(outdir, 'models.{}'.format(suffix))
