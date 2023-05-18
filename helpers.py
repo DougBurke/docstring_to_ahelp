@@ -61,7 +61,9 @@ def add_model_list(caption, models, xspec=True):
     if xspec:
         has_new = True
 
-    # but in CIAO 4.15 we still use XSPEC 12.12.0 so back to
+    # but in CIAO 4.15 we although we have updated to 12.12.1 we do
+    # not provide access to the three new models in that release
+    #
     if xspec:
         has_new = False
 
@@ -116,7 +118,7 @@ def add_model_list(caption, models, xspec=True):
 
         elif has_new:
             # Note: at the moment CIAO 4.15 has the same XSPEC model as
-            # CIAO 4.14, namely XSPEC 12.12.0.
+            # CIAO 4.14
             #
             raise NotImplementedError(name)  # do not expect this in 4.14.0
             # ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
@@ -219,8 +221,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    # No patch version in CIAO 4.15
-    xspec_major_version = '12.12.0'
+    xspec_major_version = '12.12.1c'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -267,7 +268,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     adesc = ElementTree.SubElement(entry, 'ADESC')
     adesc.set('title', 'Unavailable XSPEC models')
-    add_para(adesc, f'''The "smaug" model and the
+    add_para(adesc, f'''The "smaug", "polconst", "pollin", and "polpow" models, and the
         mixing-model components of XSPEC {xspec_version}
         are NOT included in CIAO.''')
 
@@ -281,17 +282,19 @@ def list_xspec_models(outdir, dtd='ahelp'):
     href.text = "XSPEC User's Guide"
 
     # ugly way to add this text
-    href.tail = '''for more information.  Note that the ahelp
-       files describe the version of the XSPEC model included in
-       CIAO, while the XSPEC User's Guide may reference a newer
-       version with different options. If the first column is labelled NEW then
-       the model is new to CIAO 4.14.'''
+    if False:
+        href.tail = '''for more information.  Note that the ahelp
+        files describe the version of the XSPEC model included in
+        CIAO, while the XSPEC User's Guide may reference a newer
+        version with different options. If the first column is labelled NEW then
+        the model is new to CIAO 4.14.'''
 
-    # Overwrite for CIAO 4.15
-    href.tail = '''for more information.  Note that the ahelp
-       files describe the version of the XSPEC model included in
-       CIAO, while the XSPEC User's Guide may reference a newer
-       version with different options.'''
+    else:
+        # Overwrite for CIAO 4.15
+        href.tail = '''for more information.  Note that the ahelp
+        files describe the version of the XSPEC model included in
+        CIAO, while the XSPEC User's Guide may reference a newer
+        version with different options.'''
 
     adesc.append(atbl)
     adesc.append(mtbl)
@@ -421,17 +424,16 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> xspec.get_xsversion()'
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
-    # leave this so I now waht to do in CIAO 4.16
+    adesc = ElementTree.SubElement(entry, 'ADESC')
+    adesc.set('title', 'Changes in CIAO 4.15')
+
+    add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
+    in CIAO 4.14, from version 12.12.0 in CIAO 4.14.
+    ''',
+             title='XSPEC model updates')
+
+    # for when we get new models
     if False:
-        adesc = ElementTree.SubElement(entry, 'ADESC')
-        adesc.set('title', 'Changes in CIAO 4.14')
-
-        add_para(adesc, '''The XSPEC models have been updated to release 12.12.0
-        in CIAO 4.14, from version 12.10.1s in CIAO 4.13. There are a number of
-        new models:
-        ''',
-                 title='XSPEC model updates')
-
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
         out = ElementTree.SubElement(outlist, 'ITEM')
@@ -442,18 +444,6 @@ xspowerlaw.pl
 
         out = ElementTree.SubElement(outlist, 'ITEM')
         out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
-
-        add_para(adesc, '''The parameter limits - that is the "Min" and "Max"
-        values reported by the print call - have been changed in CIAO 4.14
-        to use the XSPEC "hard-limit" range rather than the XSPEC "soft-limit"
-        range which was used in earlier versions. This can lead to changes to
-        fit results, and in routines like sample_energy_flux, for parameter
-        values that are not well constrained.''', title='Parameter changes')
-
-        add_para(adesc, '''For those rare models that require it, it is now
-        possible to change the minimum and maximum range of XSPEC parameters
-        by changing the hard_min or hard_max attribute of the parameter's
-        set method.''')
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
