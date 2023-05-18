@@ -423,9 +423,7 @@ xspowerlaw.pl
         adesc.set('title', 'Changes in CIAO 4.16')
 
         add_para(adesc, '''The XSPEC models have been updated to release 12.13.0
-        in CIAO 4.15, from version 12.12.1c in CIAO 4.14. There are a number of
-        new models:
-        ''',
+        in CIAO 4.15, from version 12.12.1c in CIAO 4.14. There is one new model:''',
                  title='XSPEC model updates')
 
         outlist = ElementTree.SubElement(adesc, 'LIST')
@@ -509,7 +507,9 @@ def list_sherpa_models(outdir, dtd='ahelp'):
                 'psfmodel',
                 'convolutionmodel',
                 'tablemodel',
-                'template', 'templatemodel', 'usermodel',
+                'template', 'templatemodel',
+                'interpolatingtemplatemodel',
+                'usermodel',
                 'integrate1d'  # WHAT TO DO ABOUT THIS
     ]
 
