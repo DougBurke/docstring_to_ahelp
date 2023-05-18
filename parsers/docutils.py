@@ -21,9 +21,9 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
-CIAOVER = "CIAO 4.15"
-XSPECVER = "12.12.1c"
-LASTMOD = "December 2022"
+CIAOVER = "CIAO 4.16"
+XSPECVER = "12.13.0c"
+LASTMOD = "December 2023"
 
 
 objname = '<unset>'
@@ -45,6 +45,7 @@ def convert_version_number(v):
     Not all Sherpa releases map to a CIAO release.
 
     CIAO releases:
+       4.16
        4.15
        4.14
        4.13
@@ -65,6 +66,8 @@ def convert_version_number(v):
     if toks[2] == '0':
         # Generic naming, drop the .0
         return '{}.{}'.format(toks[0], toks[1])
+    elif v.startswith('4.15.'):
+        return '4.16'
     elif v.startswith('4.14.'):
         return '4.15'
     elif v.startswith('4.13.'):
@@ -1679,12 +1682,15 @@ def find_notes(name, indoc):
     #
     v12121 = version('12.12.1')
 
+    # THese are new to CIAO 4.16
+    v12130 = version('12.13.0')
+
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        # return txt not in [v1291, v12100, v12101, v12110, v12120]
-        return txt not in [v1291, v12100, v12101]
+        return txt not in [v1291, v12100, v12101, v12110, v12120]
+        # return txt not in [v1291, v12100, v12101]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
@@ -1693,7 +1699,9 @@ def find_notes(name, indoc):
 
     # What happens if this is a 12.12.1 only model? It is not
     # supported in CIAO 4.15 so we have to remove it. However
-    # we do not expect this
+    # we do not expect this. These models are also not supported
+    # in 4.16 (so when we do add support it's going to get
+    # complicated)
     #
     def not_wanted(n):
         txt = n.astext()
@@ -1712,7 +1720,8 @@ def find_notes(name, indoc):
     # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
     #   but we are only going out with XSPEC 12.10.1
     # CIAO 4.14 uses 12.12.0
-    # CIAO 4.15 uses 12.12.0
+    # CIAO 4.15 uses 12.12.0  (actually 12.12.1)
+    # CIAO 4.16 uses 12.13.0  (as of May 2023)
     #
     has_version_12110 = False
     has_version_12120 = False
@@ -1721,6 +1730,10 @@ def find_notes(name, indoc):
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
 
     # Do we want to process the contents or add them as a versionadded entry?
+    #
+    # I am no-longer confident I understand all the complexities here,
+    # as have added code to handle things like "we now support a model
+    # that has been present for a while, but only now can we use it".
     #
     for para in lnodes:
         if para.astext() == v12110:
@@ -2571,7 +2584,7 @@ def convert_docutils(name, doc, sig,
     #
     added = 0
 
-    # This is hard-coded to the cases I nkow about
+    # This is hard-coded to the cases I know about
     skippy1 = [p.get('title') == 'Changed in CIAO 4.14' for p in store_versions['versionchanged']]
     skippy2 = [p.get('title') == 'New in CIAO 4.14' for p in store_versions['versionadded']]
     if any(skippy1) and any(skippy2):

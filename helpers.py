@@ -13,8 +13,8 @@ from parsers.ahelp import find_metadata
 from parsers.docutils import merge_metadata
 
 
-# CIAO 4.15
-LASTMOD = "December 2022"
+# CIAO 4.16
+LASTMOD = "December 2023"
 
 
 def save_doc(outfile, xmldoc):
@@ -57,15 +57,11 @@ def add_model_list(caption, models, xspec=True):
     # Do we need to beef this up?
     has_new = False
 
-    # hack for CIAO 4.14 as all three tables have new models
-    if xspec:
-        has_new = True
-
-    # but in CIAO 4.15 we although we have updated to 12.12.1 we do
-    # not provide access to the three new models in that release
+    # hack for CIAO 4.16 as we have at least one new model,
+    # xscglumin
     #
     if xspec:
-        has_new = False
+        has_new = True
 
     if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
@@ -109,18 +105,16 @@ def add_model_list(caption, models, xspec=True):
             def is_new(major, minor, micro):
                 return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
 
-            new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
+            # new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
 
-            new = False  # special case CIAO 4.15
+            # CIAO 4.15 went out with 12.12.1c and 4.16 is currently 12.13.0
+            new = is_new(12, 13, 0)
 
             # As we are not showing the new column we don't do this
-            # ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
 
         elif has_new:
-            # Note: at the moment CIAO 4.15 has the same XSPEC model as
-            # CIAO 4.14
-            #
-            raise NotImplementedError(name)  # do not expect this in 4.14.0
+            raise NotImplementedError(name)  # do not expect this in 4.16.0
             # ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
 
         ElementTree.SubElement(row, 'DATA').text = name
@@ -221,7 +215,8 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    xspec_major_version = '12.12.1c'
+    # do we want the patch version here?
+    xspec_major_version = '12.13.0c'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -234,7 +229,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.15 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.16 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
@@ -282,19 +277,17 @@ def list_xspec_models(outdir, dtd='ahelp'):
     href.text = "XSPEC User's Guide"
 
     # ugly way to add this text
-    if False:
-        href.tail = '''for more information.  Note that the ahelp
-        files describe the version of the XSPEC model included in
-        CIAO, while the XSPEC User's Guide may reference a newer
-        version with different options. If the first column is labelled NEW then
-        the model is new to CIAO 4.14.'''
+    href.tail = '''for more information.  Note that the ahelp
+       files describe the version of the XSPEC model included in
+       CIAO, while the XSPEC User's Guide may reference a newer
+       version with different options. If the first column is labelled NEW then
+       the model is new to CIAO 4.16.'''
 
-    else:
-        # Overwrite for CIAO 4.15
-        href.tail = '''for more information.  Note that the ahelp
-        files describe the version of the XSPEC model included in
-        CIAO, while the XSPEC User's Guide may reference a newer
-        version with different options.'''
+    # Overwrite for CIAO 4.15
+    #href.tail = '''for more information.  Note that the ahelp
+    #   files describe the version of the XSPEC model included in
+    #   CIAO, while the XSPEC User's Guide may reference a newer
+    #   version with different options.'''
 
     adesc.append(atbl)
     adesc.append(mtbl)
@@ -424,26 +417,27 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> xspec.get_xsversion()'
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
-    adesc = ElementTree.SubElement(entry, 'ADESC')
-    adesc.set('title', 'Changes in CIAO 4.15')
+    # If we have changes to talk about
+    if True:
+        adesc = ElementTree.SubElement(entry, 'ADESC')
+        adesc.set('title', 'Changes in CIAO 4.16')
 
-    add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
-    in CIAO 4.14, from version 12.12.0 in CIAO 4.14.
-    ''',
-             title='XSPEC model updates')
+        add_para(adesc, '''The XSPEC models have been updated to release 12.13.0
+        in CIAO 4.15, from version 12.12.1c in CIAO 4.14. There are a number of
+        new models:
+        ''',
+                 title='XSPEC model updates')
 
-    # for when we get new models
-    if False:
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
-        out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+        #out = ElementTree.SubElement(outlist, 'ITEM')
+        #out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+
+        #out = ElementTree.SubElement(outlist, 'ITEM')
+        #out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
 
         out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
-
-        out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
+        out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
