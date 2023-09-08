@@ -308,6 +308,10 @@ def astext(node):
         process_target(node)
         return ""
 
+    if node.tagname == "citation_reference":
+        # This is new in CIAO 4.16. I guess this should just be:
+        return f"[{node.astext()}]"
+
     assert node.tagname in ['paragraph', 'list_item',
                             'enumerated_list'], node
 
@@ -1843,9 +1847,44 @@ def find_references(indoc):
     cts = ElementTree.SubElement(out, 'LIST')
 
     for footnote in lnodes:
-        assert footnote.tagname == 'footnote'
+        # This used to be a footnote but as of CIAO 4.16 it
+        # can now be much more.
+        #
+        if footnote.tagname == 'footnote':
+            ElementTree.SubElement(cts, 'ITEM').text = astext(footnote)
 
-        ElementTree.SubElement(cts, 'ITEM').text = astext(footnote)
+        elif footnote.tagname == 'paragraph':
+            # Tricky, as need to clean out any extra information,
+            # such as links, since the DTD is very restricted here.
+            #
+            # We could add links as text, but let's not bother with
+            # that until we need to.
+            #
+            ElementTree.SubElement(cts, 'ITEM').text = footnote.astext()
+
+        elif footnote.tagname == "citation":
+            # Assume the structure is
+            #    <citation ids= names=>  -- ignore these attributes
+            #      <label>...</label>
+            #      <paragraph>
+            #        <reference refurl=>...</reference>
+            #      </paragraph>
+            #    </citation>
+            #
+            assert len(footnote) == 2, (len(footnote), str(footnote))
+            assert footnote[0].tagname == "label", str(footnote[0])
+            assert footnote[1].tagname == "paragraph", str(footnote[1])
+            txt = f"[{footnote[0].astext()}] {footnote[1].astext()}"
+            ElementTree.SubElement(cts, 'ITEM').text = txt
+
+        elif footnote.tagname == "enumerated_list":
+            for subelem in footnote:
+                assert subelem.tagname == "list_item", (subelem.tagname,
+                                                        str(subelem))
+                ElementTree.SubElement(cts, 'ITEM').text = subelem.astext()
+
+        else:
+            assert False, (footnote.tagname, str(footnote))
 
     return out, rnodes
 
