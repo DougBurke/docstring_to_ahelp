@@ -107,7 +107,7 @@ def add_model_list(caption, models, xspec=True):
 
             # new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
 
-            # CIAO 4.15 went out with 12.12.1c and 4.16 is currently 12.13.0
+            # CIAO 4.15 went out with 12.12.1c and 4.16 is currently 12.13.1
             new = is_new(12, 13, 0)
 
             # As we are not showing the new column we don't do this
@@ -216,7 +216,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         return out
 
     # do we want the patch version here?
-    xspec_major_version = '12.13.0c'
+    xspec_major_version = '12.13.1'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -236,9 +236,12 @@ def list_xspec_models(outdir, dtd='ahelp'):
     is "xscflux".
     ''')
 
-    add_para(desc, '''The additive (atable), multiplicative (mtable), and
-    exponential (etable) XSPEC table models are supported by the
-    load_xstable_model command.''',
+    add_para(desc, '''The additive (atable), multiplicative (mtable), and exponential
+    (etable) XSPEC table models are supported by the
+    load_xstable_model command. Models that provide redshift and
+    escale parameters are supported, but those models with multiple
+    spectra per set of parameters (where the NXFLTEXP keyword is set
+    to a value greater than 1) are not.''',
              title='XSPEC table models')
 
     add_para(desc, '''XSPEC models based on physical processes (e.g. line models
@@ -422,8 +425,8 @@ xspowerlaw.pl
         adesc = ElementTree.SubElement(entry, 'ADESC')
         adesc.set('title', 'Changes in CIAO 4.16')
 
-        add_para(adesc, '''The XSPEC models have been updated to release 12.13.0
-        in CIAO 4.15, from version 12.12.1c in CIAO 4.14. There is one new model:''',
+        add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
+        in CIAO 4.16, from version 12.12.1c in CIAO 4.15. There is one new model:''',
                  title='XSPEC model updates')
 
         outlist = ElementTree.SubElement(adesc, 'LIST')
@@ -436,6 +439,14 @@ xspowerlaw.pl
 
         out = ElementTree.SubElement(outlist, 'ITEM')
         out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
+
+        add_para(adesc, '''The maximum limit for the redshift parameter
+        of XSPEC table models can once again be set to a value greater
+        than 5 (the default maximum). Support for table models that have an
+        ESCALE parameter has been added. Unfortunately, table models
+        NXFLTEXP greater than 1 (that is, ones with multiple spectra
+        per set of parameter values) can not be used.''',
+                 title="XSPEC table models");
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
