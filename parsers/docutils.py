@@ -897,6 +897,46 @@ def convert_note(note):
     return out
 
 
+def convert_warning(note):
+    """Create a warning block.
+
+    Parameters
+    ----------
+    note : docutils.nodes.note
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    """
+
+    assert note.tagname == 'warning'
+
+    # Assume:
+    #  1 paragraph - text
+    #  2 paragrahs - first is title, second is text (although not handled yet)
+    #
+    # could be mode though
+    assert all([n.tagname == 'paragraph' for n in note]), note
+
+    # could handle this, but would need to return [Element]
+    #
+    assert len(note) < 3, (len(note), note)
+
+    if len(note) == 1:
+        title = 'Warning'
+        out = convert_para(note[0])
+    else:
+        raise NotImplementedError("need to handle")
+        title = astext(note[0])
+        out = convert_para(note[1])
+
+    out.set('title', title)
+
+    return out
+
+
 store_versions = None
 
 
@@ -1067,6 +1107,7 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'bullet_list': convert_bullet_list,
                    'table': convert_table,
                    'note': convert_note,
+                   'warning': convert_warning,
                    'versionadded': convert_versionwarning,
                    'versionchanged': convert_versionwarning,
                    'comment': convert_comment_versionwarning,
