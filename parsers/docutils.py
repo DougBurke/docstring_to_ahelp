@@ -942,7 +942,8 @@ store_versions = None
 
 def reset_stored_versions():
     global store_versions
-    store_versions = {'versionadded': [], 'versionchanged': []}
+    store_versions = {'versionadded': [], 'versionchanged': [],
+                      'titles': set()}
 
 
 def convert_versionwarning(block):
@@ -995,7 +996,9 @@ def convert_versionwarning(block):
     title = '{} in CIAO {}'.format(lbl, version)
 
     out = ElementTree.Element("PARA")
-    out.set('title', title)
+    if title not in store_versions["titles"]:
+        out.set('title', title)
+        store_versions["titles"].add(title)
 
     if len(toks) > 1:
         out.text = toks[1]
@@ -2653,7 +2656,7 @@ def convert_docutils(name, doc, sig,
     versioninfo.set('title', 'Changes in CIAO')
 
     for key in store_versions.keys():
-        assert key in ['versionadded', 'versionchanged'], key
+        assert key in ['versionadded', 'versionchanged', 'titles'], key
 
     # assume the versionchanged is in descending numerical order
     # so we display the latest version first, and end up with the
