@@ -1707,7 +1707,8 @@ def find_notes(name, indoc):
     # Strip out any paragraph which matches:
     #
     # This model is only available when used with XSPEC 12.9.1 or later.
-    # This model is only available when used with XSPEC 12.10.0 or later.
+    #
+    # for various XSPEC versions.
     #
     # Note that (at present) there is no attempt to remove the
     # sentence from a block of text (ie if there is additional material),
@@ -1715,7 +1716,7 @@ def find_notes(name, indoc):
     #
     def version(v):
         return 'This model is only available when used with ' + \
-            'XSPEC {} or later.'.format(v)
+            f'XSPEC {v} or later.'
 
     v1291 = version('12.9.1')
     v12100 = version('12.10.0')
@@ -1730,15 +1731,14 @@ def find_notes(name, indoc):
     #
     v12121 = version('12.12.1')
 
-    # THese are new to CIAO 4.16
+    # These are new to CIAO 4.16 - cglumin is the only one
     v12130 = version('12.13.0')
 
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        return txt not in [v1291, v12100, v12101, v12110, v12120]
-        # return txt not in [v1291, v12100, v12101]
+        return txt not in [v1291, v12100, v12101, v12110, v12120, v12130]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
