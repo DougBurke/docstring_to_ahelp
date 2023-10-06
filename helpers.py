@@ -13,8 +13,8 @@ from parsers.ahelp import find_metadata
 from parsers.docutils import merge_metadata
 
 
-# CIAO 4.15
-LASTMOD = "December 2022"
+# CIAO 4.16
+LASTMOD = "December 2023"
 
 
 def save_doc(outfile, xmldoc):
@@ -57,15 +57,11 @@ def add_model_list(caption, models, xspec=True):
     # Do we need to beef this up?
     has_new = False
 
-    # hack for CIAO 4.14 as all three tables have new models
-    if xspec:
-        has_new = True
-
-    # but in CIAO 4.15 we although we have updated to 12.12.1 we do
-    # not provide access to the three new models in that release
+    # hack for CIAO 4.16 as we have at least one new model,
+    # xscglumin
     #
     if xspec:
-        has_new = False
+        has_new = True
 
     if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
@@ -109,18 +105,16 @@ def add_model_list(caption, models, xspec=True):
             def is_new(major, minor, micro):
                 return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
 
-            new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
+            # new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
 
-            new = False  # special case CIAO 4.15
+            # CIAO 4.15 went out with 12.12.1c and 4.16 is currently 12.13.1
+            new = is_new(12, 13, 0)
 
             # As we are not showing the new column we don't do this
-            # ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
 
         elif has_new:
-            # Note: at the moment CIAO 4.15 has the same XSPEC model as
-            # CIAO 4.14
-            #
-            raise NotImplementedError(name)  # do not expect this in 4.14.0
+            raise NotImplementedError(name)  # do not expect this in 4.16.0
             # ElementTree.SubElement(row, 'DATA').text = 'NEW' if name in ['pseudovoigt1d', 'voigt1d'] else ''
 
         ElementTree.SubElement(row, 'DATA').text = name
@@ -221,7 +215,8 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
         return out
 
-    xspec_major_version = '12.12.1c'
+    # do we want the patch version here?
+    xspec_major_version = '12.13.1'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -234,16 +229,19 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.15 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.16 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
     is "xscflux".
     ''')
 
-    add_para(desc, '''The additive (atable), multiplicative (mtable), and
-    exponential (etable) XSPEC table models are supported by the
-    load_xstable_model command.''',
+    add_para(desc, '''The additive (atable), multiplicative (mtable), and exponential
+    (etable) XSPEC table models are supported by the
+    load_xstable_model command. Models that provide redshift and
+    escale parameters are supported, but those models with multiple
+    spectra per set of parameters (where the NXFLTEXP keyword is set
+    to a value greater than 1) are not.''',
              title='XSPEC table models')
 
     add_para(desc, '''XSPEC models based on physical processes (e.g. line models
@@ -282,19 +280,17 @@ def list_xspec_models(outdir, dtd='ahelp'):
     href.text = "XSPEC User's Guide"
 
     # ugly way to add this text
-    if False:
-        href.tail = '''for more information.  Note that the ahelp
-        files describe the version of the XSPEC model included in
-        CIAO, while the XSPEC User's Guide may reference a newer
-        version with different options. If the first column is labelled NEW then
-        the model is new to CIAO 4.14.'''
+    href.tail = '''for more information.  Note that the ahelp
+       files describe the version of the XSPEC model included in
+       CIAO, while the XSPEC User's Guide may reference a newer
+       version with different options. If the first column is labelled NEW then
+       the model is new to CIAO 4.16.'''
 
-    else:
-        # Overwrite for CIAO 4.15
-        href.tail = '''for more information.  Note that the ahelp
-        files describe the version of the XSPEC model included in
-        CIAO, while the XSPEC User's Guide may reference a newer
-        version with different options.'''
+    # Overwrite for CIAO 4.15
+    #href.tail = '''for more information.  Note that the ahelp
+    #   files describe the version of the XSPEC model included in
+    #   CIAO, while the XSPEC User's Guide may reference a newer
+    #   version with different options.'''
 
     adesc.append(atbl)
     adesc.append(mtbl)
@@ -424,26 +420,33 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = 'sherpa> xspec.get_xsversion()'
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
-    adesc = ElementTree.SubElement(entry, 'ADESC')
-    adesc.set('title', 'Changes in CIAO 4.15')
+    # If we have changes to talk about
+    if True:
+        adesc = ElementTree.SubElement(entry, 'ADESC')
+        adesc.set('title', 'Changes in CIAO 4.16')
 
-    add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
-    in CIAO 4.14, from version 12.12.0 in CIAO 4.14.
-    ''',
-             title='XSPEC model updates')
+        add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
+        in CIAO 4.16, from version 12.12.1c in CIAO 4.15. There is one new model:''',
+                 title='XSPEC model updates')
 
-    # for when we get new models
-    if False:
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
-        out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+        #out = ElementTree.SubElement(outlist, 'ITEM')
+        #out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+
+        #out = ElementTree.SubElement(outlist, 'ITEM')
+        #out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
 
         out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
+        out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
 
-        out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Convolution: " + ", ".join(["xsthcomp"]) + "."
+        add_para(adesc, '''The maximum limit for the redshift parameter
+        of XSPEC table models can once again be set to a value greater
+        than 5 (the default maximum). Support for table models that have an
+        ESCALE parameter has been added. Unfortunately, table models
+        NXFLTEXP greater than 1 (that is, ones with multiple spectra
+        per set of parameter values) can not be used.''',
+                 title="XSPEC table models");
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
@@ -515,7 +518,9 @@ def list_sherpa_models(outdir, dtd='ahelp'):
                 'psfmodel',
                 'convolutionmodel',
                 'tablemodel',
-                'template', 'templatemodel', 'usermodel',
+                'template', 'templatemodel',
+                'interpolatingtemplatemodel',
+                'usermodel',
                 'integrate1d'  # WHAT TO DO ABOUT THIS
     ]
 

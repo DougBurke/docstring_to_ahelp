@@ -21,9 +21,9 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
-CIAOVER = "CIAO 4.15"
-XSPECVER = "12.12.1c"
-LASTMOD = "December 2022"
+CIAOVER = "CIAO 4.16"
+XSPECVER = "12.13.1"
+LASTMOD = "December 2023"
 
 
 objname = '<unset>'
@@ -45,6 +45,7 @@ def convert_version_number(v):
     Not all Sherpa releases map to a CIAO release.
 
     CIAO releases:
+       4.16
        4.15
        4.14
        4.13
@@ -65,6 +66,8 @@ def convert_version_number(v):
     if toks[2] == '0':
         # Generic naming, drop the .0
         return '{}.{}'.format(toks[0], toks[1])
+    elif v.startswith('4.15.'):
+        return '4.16'
     elif v.startswith('4.14.'):
         return '4.15'
     elif v.startswith('4.13.'):
@@ -304,6 +307,10 @@ def astext(node):
         # assume we can just skip this
         process_target(node)
         return ""
+
+    if node.tagname == "citation_reference":
+        # This is new in CIAO 4.16. I guess this should just be:
+        return f"[{node.astext()}]"
 
     assert node.tagname in ['paragraph', 'list_item',
                             'enumerated_list'], node
@@ -890,12 +897,53 @@ def convert_note(note):
     return out
 
 
+def convert_warning(note):
+    """Create a warning block.
+
+    Parameters
+    ----------
+    note : docutils.nodes.note
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    """
+
+    assert note.tagname == 'warning'
+
+    # Assume:
+    #  1 paragraph - text
+    #  2 paragrahs - first is title, second is text (although not handled yet)
+    #
+    # could be mode though
+    assert all([n.tagname == 'paragraph' for n in note]), note
+
+    # could handle this, but would need to return [Element]
+    #
+    assert len(note) < 3, (len(note), note)
+
+    if len(note) == 1:
+        title = 'Warning'
+        out = convert_para(note[0])
+    else:
+        raise NotImplementedError("need to handle")
+        title = astext(note[0])
+        out = convert_para(note[1])
+
+    out.set('title', title)
+
+    return out
+
+
 store_versions = None
 
 
 def reset_stored_versions():
     global store_versions
-    store_versions = {'versionadded': [], 'versionchanged': []}
+    store_versions = {'versionadded': [], 'versionchanged': [],
+                      'titles': set()}
 
 
 def convert_versionwarning(block):
@@ -948,7 +996,9 @@ def convert_versionwarning(block):
     title = '{} in CIAO {}'.format(lbl, version)
 
     out = ElementTree.Element("PARA")
-    out.set('title', title)
+    if title not in store_versions["titles"]:
+        out.set('title', title)
+        store_versions["titles"].add(title)
 
     if len(toks) > 1:
         out.text = toks[1]
@@ -1060,6 +1110,7 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'bullet_list': convert_bullet_list,
                    'table': convert_table,
                    'note': convert_note,
+                   'warning': convert_warning,
                    'versionadded': convert_versionwarning,
                    'versionchanged': convert_versionwarning,
                    'comment': convert_comment_versionwarning,
@@ -1656,7 +1707,8 @@ def find_notes(name, indoc):
     # Strip out any paragraph which matches:
     #
     # This model is only available when used with XSPEC 12.9.1 or later.
-    # This model is only available when used with XSPEC 12.10.0 or later.
+    #
+    # for various XSPEC versions.
     #
     # Note that (at present) there is no attempt to remove the
     # sentence from a block of text (ie if there is additional material),
@@ -1664,7 +1716,7 @@ def find_notes(name, indoc):
     #
     def version(v):
         return 'This model is only available when used with ' + \
-            'XSPEC {} or later.'.format(v)
+            f'XSPEC {v} or later.'
 
     v1291 = version('12.9.1')
     v12100 = version('12.10.0')
@@ -1679,12 +1731,14 @@ def find_notes(name, indoc):
     #
     v12121 = version('12.12.1')
 
+    # These are new to CIAO 4.16 - cglumin is the only one
+    v12130 = version('12.13.0')
+
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        # return txt not in [v1291, v12100, v12101, v12110, v12120]
-        return txt not in [v1291, v12100, v12101]
+        return txt not in [v1291, v12100, v12101, v12110, v12120, v12130]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
@@ -1693,7 +1747,9 @@ def find_notes(name, indoc):
 
     # What happens if this is a 12.12.1 only model? It is not
     # supported in CIAO 4.15 so we have to remove it. However
-    # we do not expect this
+    # we do not expect this. These models are also not supported
+    # in 4.16 (so when we do add support it's going to get
+    # complicated)
     #
     def not_wanted(n):
         txt = n.astext()
@@ -1712,7 +1768,8 @@ def find_notes(name, indoc):
     # CIAO 4.13 has 12.11.0 and 12.11.1 (but only 12.11.0 has new models)
     #   but we are only going out with XSPEC 12.10.1
     # CIAO 4.14 uses 12.12.0
-    # CIAO 4.15 uses 12.12.0
+    # CIAO 4.15 uses 12.12.0  (actually 12.12.1)
+    # CIAO 4.16 uses 12.13.0  (as of May 2023)
     #
     has_version_12110 = False
     has_version_12120 = False
@@ -1721,6 +1778,10 @@ def find_notes(name, indoc):
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
 
     # Do we want to process the contents or add them as a versionadded entry?
+    #
+    # I am no-longer confident I understand all the complexities here,
+    # as have added code to handle things like "we now support a model
+    # that has been present for a while, but only now can we use it".
     #
     for para in lnodes:
         if para.astext() == v12110:
@@ -1830,9 +1891,44 @@ def find_references(indoc):
     cts = ElementTree.SubElement(out, 'LIST')
 
     for footnote in lnodes:
-        assert footnote.tagname == 'footnote'
+        # This used to be a footnote but as of CIAO 4.16 it
+        # can now be much more.
+        #
+        if footnote.tagname == 'footnote':
+            ElementTree.SubElement(cts, 'ITEM').text = astext(footnote)
 
-        ElementTree.SubElement(cts, 'ITEM').text = astext(footnote)
+        elif footnote.tagname == 'paragraph':
+            # Tricky, as need to clean out any extra information,
+            # such as links, since the DTD is very restricted here.
+            #
+            # We could add links as text, but let's not bother with
+            # that until we need to.
+            #
+            ElementTree.SubElement(cts, 'ITEM').text = footnote.astext()
+
+        elif footnote.tagname == "citation":
+            # Assume the structure is
+            #    <citation ids= names=>  -- ignore these attributes
+            #      <label>...</label>
+            #      <paragraph>
+            #        <reference refurl=>...</reference>
+            #      </paragraph>
+            #    </citation>
+            #
+            assert len(footnote) == 2, (len(footnote), str(footnote))
+            assert footnote[0].tagname == "label", str(footnote[0])
+            assert footnote[1].tagname == "paragraph", str(footnote[1])
+            txt = f"[{footnote[0].astext()}] {footnote[1].astext()}"
+            ElementTree.SubElement(cts, 'ITEM').text = txt
+
+        elif footnote.tagname == "enumerated_list":
+            for subelem in footnote:
+                assert subelem.tagname == "list_item", (subelem.tagname,
+                                                        str(subelem))
+                ElementTree.SubElement(cts, 'ITEM').text = subelem.astext()
+
+        else:
+            assert False, (footnote.tagname, str(footnote))
 
     return out, rnodes
 
@@ -2560,7 +2656,7 @@ def convert_docutils(name, doc, sig,
     versioninfo.set('title', 'Changes in CIAO')
 
     for key in store_versions.keys():
-        assert key in ['versionadded', 'versionchanged'], key
+        assert key in ['versionadded', 'versionchanged', 'titles'], key
 
     # assume the versionchanged is in descending numerical order
     # so we display the latest version first, and end up with the
@@ -2571,7 +2667,7 @@ def convert_docutils(name, doc, sig,
     #
     added = 0
 
-    # This is hard-coded to the cases I nkow about
+    # This is hard-coded to the cases I know about
     skippy1 = [p.get('title') == 'Changed in CIAO 4.14' for p in store_versions['versionchanged']]
     skippy2 = [p.get('title') == 'New in CIAO 4.14' for p in store_versions['versionadded']]
     if any(skippy1) and any(skippy2):
