@@ -22,7 +22,7 @@ from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplic
 
 
 CIAOVER = "CIAO 4.16"
-XSPECVER = "12.13.1"
+XSPECVER = "12.13.1e"
 LASTMOD = "December 2023"
 
 
