@@ -21,9 +21,9 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
-CIAOVER = "CIAO 4.16"
-XSPECVER = "12.13.1e"
-LASTMOD = "December 2023"
+CIAOVER = "CIAO 4.17"
+XSPECVER = "12.14.0h"
+LASTMOD = "December 2024"
 
 
 objname = '<unset>'
@@ -45,6 +45,7 @@ def convert_version_number(v):
     Not all Sherpa releases map to a CIAO release.
 
     CIAO releases:
+       4.17
        4.16
        4.15
        4.14
@@ -66,6 +67,8 @@ def convert_version_number(v):
     if toks[2] == '0':
         # Generic naming, drop the .0
         return '{}.{}'.format(toks[0], toks[1])
+    elif v.startswith('4.16.'):
+        return '4.17'
     elif v.startswith('4.15.'):
         return '4.16'
     elif v.startswith('4.14.'):
@@ -1734,11 +1737,15 @@ def find_notes(name, indoc):
     # These are new to CIAO 4.16 - cglumin is the only one
     v12130 = version('12.13.0')
 
+    # These are new to CIAO 4.17
+    v12140 = version('12.14.0')
+
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        return txt not in [v1291, v12100, v12101, v12110, v12120, v12130]
+        return txt not in [v1291, v12100, v12101, v12110, v12120,
+                           v12130, v12140]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
@@ -1770,6 +1777,7 @@ def find_notes(name, indoc):
     # CIAO 4.14 uses 12.12.0
     # CIAO 4.15 uses 12.12.0  (actually 12.12.1)
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
+    # CIAO 4.17 is planned to use 12.14.0
     #
     has_version_12110 = False
     has_version_12120 = False
