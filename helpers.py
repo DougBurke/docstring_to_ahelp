@@ -13,8 +13,8 @@ from parsers.ahelp import find_metadata
 from parsers.docutils import merge_metadata
 
 
-# CIAO 4.16
-LASTMOD = "December 2023"
+# CIAO 4.17
+LASTMOD = "December 2024"
 
 
 def save_doc(outfile, xmldoc):
@@ -57,8 +57,7 @@ def add_model_list(caption, models, xspec=True):
     # Do we need to beef this up?
     has_new = False
 
-    # hack for CIAO 4.16 as we have at least one new model,
-    # xscglumin
+    # I assume that CIAO 4.17 has some new models from XSPEC 12.14
     #
     if xspec:
         has_new = True
@@ -107,8 +106,10 @@ def add_model_list(caption, models, xspec=True):
 
             # new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
 
-            # CIAO 4.15 went out with 12.12.1c and 4.16 is 12.13.1e
-            new = is_new(12, 13, 0)
+            # CIAO 4.15 went out with 12.12.1c
+            #      4.16 is 12.13.1e
+            #      4.17    12.14.0h ?
+            new = is_new(12, 14, 0)
 
             # As we are not showing the new column we don't do this
             ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
@@ -216,7 +217,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         return out
 
     # do we want the patch version here? Ideally.
-    xspec_major_version = '12.13.1e'
+    xspec_major_version = '12.14.0h'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -229,7 +230,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.16 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.17 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
@@ -284,7 +285,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
        files describe the version of the XSPEC model included in
        CIAO, while the XSPEC User's Guide may reference a newer
        version with different options. If the first column is labelled NEW then
-       the model is new to CIAO 4.16.'''
+       the model is new to CIAO 4.17.'''
 
     # Overwrite for CIAO 4.15
     #href.tail = '''for more information.  Note that the ahelp
@@ -423,30 +424,31 @@ xspowerlaw.pl
     # If we have changes to talk about
     if True:
         adesc = ElementTree.SubElement(entry, 'ADESC')
-        adesc.set('title', 'Changes in CIAO 4.16')
+        adesc.set('title', 'Changes in CIAO 4.17')
 
         add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
-        in CIAO 4.16, from version 12.12.1c in CIAO 4.15. There is one new model:''',
+        in CIAO 4.17, from version 12.13.1e in CIAO 4.16. There is one new model:''',
                  title='XSPEC model updates')
 
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
-        #out = ElementTree.SubElement(outlist, 'ITEM')
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        out.text = "TBD"
         #out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
 
         #out = ElementTree.SubElement(outlist, 'ITEM')
         #out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
 
-        out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
+        #out = ElementTree.SubElement(outlist, 'ITEM')
+        #out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
 
-        add_para(adesc, '''The maximum limit for the redshift parameter
-        of XSPEC table models can once again be set to a value greater
-        than 5 (the default maximum). Support for table models that have an
-        ESCALE parameter has been added. Unfortunately, table models
-        NXFLTEXP greater than 1 (that is, ones with multiple spectra
-        per set of parameter values) can not be used.''',
-                 title="XSPEC table models");
+        #add_para(adesc, '''The maximum limit for the redshift parameter
+        #of XSPEC table models can once again be set to a value greater
+        #than 5 (the default maximum). Support for table models that have an
+        #ESCALE parameter has been added. Unfortunately, table models
+        #NXFLTEXP greater than 1 (that is, ones with multiple spectra
+        #per set of parameter values) can not be used.''',
+        #         title="XSPEC table models");
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
