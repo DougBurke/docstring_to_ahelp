@@ -43,10 +43,15 @@ def save_doc(outfile, xmldoc):
         xmldoc.write(f, 'utf-8')
 
 
-def add_model_list(caption, models, xspec=True):
+def add_model_list(caption, models, xspec=True,
+                   new_elements=None):
     """Return a TABLE element describing the models.
 
     This needs to be updated for each CIAO release.
+
+    new_elements is a hacky way to send back a list of any new
+    elements;  just sent it an empty list and it will be
+    updated with the new elements.
     """
 
     tbl = ElementTree.Element('TABLE')
@@ -57,7 +62,7 @@ def add_model_list(caption, models, xspec=True):
     # Do we need to beef this up?
     has_new = False
 
-    # I assume that CIAO 4.17 has some new models from XSPEC 12.14
+    # CIAO 4.17 has some new models from XSPEC 12.14.0
     #
     if xspec:
         has_new = True
@@ -98,21 +103,33 @@ def add_model_list(caption, models, xspec=True):
         # 'This model is only available when used with XSPEC 12.11.0 or later.'
         # as CIAO 4.13 went out with XSPEC 12.10.1s.
         #
+        # It is not clear if this logic is even relevant any more, as
+        # it looks like this is now handled in
+        # docutils.convert_versionwarning.
+        #
         if xspec:
 
             doc = sym().__doc__
+
+            # Unfortunately the format has changed by accident.
+            #def is_new(major, minor, micro):
+            #    return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
+
             def is_new(major, minor, micro):
-                return doc.find(f'This model is only available when used with XSPEC {major}.{minor}.{micro} or later.') > -1
+                return doc.find(f'This model requires XSPEC {major}.{minor}.{micro} or later.') > -1
 
             # new = is_new(12, 11, 0) or is_new(12, 11, 1) or is_new(12, 12, 0)
 
             # CIAO 4.15 went out with 12.12.1c
             #      4.16 is 12.13.1e
-            #      4.17    12.14.0h ?
+            #      4.17    12.14.0i ?
             new = is_new(12, 14, 0)
 
             # As we are not showing the new column we don't do this
             ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+
+            if new and new_elements is not None:
+                new_elements.append(name)
 
         elif has_new:
             raise NotImplementedError(name)  # do not expect this in 4.16.0
@@ -181,9 +198,24 @@ def list_xspec_models(outdir, dtd='ahelp'):
     check('multiplicative', mul_models)
     check('convolution', con_models)
 
-    atbl = add_model_list('Additive XSPEC models', add_models)
-    mtbl = add_model_list('Multiplicative XSPEC models', mul_models)
-    ctbl = add_model_list('Convolution XSPEC models', con_models)
+    # CIAO 4.17
+    new_add_models = []
+    should_be_empty = []
+
+    atbl = add_model_list('Additive XSPEC models', add_models,
+                          new_elements=new_add_models)
+    mtbl = add_model_list('Multiplicative XSPEC models', mul_models,
+                          new_elements=should_be_empty)
+    ctbl = add_model_list('Convolution XSPEC models', con_models,
+                          new_elements=should_be_empty)
+
+    if should_be_empty != []:
+        print(should_be_empty)
+        assert False, "expected no new mul/con models in 4.17"
+
+    if len(new_add_models) != 50:
+        print(len(new_add_models))
+        assert False, "expected 50 new models"
 
     rootname = None
     if dtd == 'ahelp':
@@ -217,7 +249,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         return out
 
     # do we want the patch version here? Ideally.
-    xspec_major_version = '12.14.0h'
+    xspec_major_version = '12.14.0i'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -427,14 +459,15 @@ xspowerlaw.pl
         adesc.set('title', 'Changes in CIAO 4.17')
 
         add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
-        in CIAO 4.17, from version 12.13.1e in CIAO 4.16. There is one new model:''',
+        in CIAO 4.17, from version 12.13.1e in CIAO 4.16. There are 50 new additive models, although a number of them are
+        essentially just renamed versions of existing models (see the XSPEC model documentation for
+        more details):''',
                  title='XSPEC model updates')
 
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
         out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = "TBD"
-        #out.text = "Additive: " + ", ".join(["xsagnslim", "xsbwcycl", "xsgrbjet", "xsvvwdem", "xsvwdem", "xswdem", "xszkerrbb"]) + "."
+        out.text = ", ".join(new_add_models) + "."
 
         #out = ElementTree.SubElement(outlist, 'ITEM')
         #out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
@@ -442,13 +475,26 @@ xspowerlaw.pl
         #out = ElementTree.SubElement(outlist, 'ITEM')
         #out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
 
-        #add_para(adesc, '''The maximum limit for the redshift parameter
-        #of XSPEC table models can once again be set to a value greater
-        #than 5 (the default maximum). Support for table models that have an
-        #ESCALE parameter has been added. Unfortunately, table models
-        #NXFLTEXP greater than 1 (that is, ones with multiple spectra
-        #per set of parameter values) can not be used.''',
-        #         title="XSPEC table models");
+        add_para(adesc, '''The default parameter values of a number of
+        models have been adjusted to match changes made in XSPEC 12.14.0.
+        Ot particular note are models which now use a default redshift
+        if 0.1 rather than 0, and models with a switch parameter which now
+        default to 2 rather than 1 (indicating the use of APEC for
+        interpolation rather than mekal). The switch parameter may also
+        now have an upper limit of 3, indicating the use of SPEX data
+        for the interpolation, rather than 2. Several models have seen
+        some parameters marked as frozen or thawed to match XSPEC 12.14.0.
+        Please
+        see the individual model ahelp pages for more information.''',
+                 title="Changes to default parameter values")
+
+        add_para(adesc, '''A number of models now use the XSPEC capitalization
+        for the redshift parameter (that is, 'redshift' or 'Redshift',
+        depending on the model). Since Sherpa's parameter interface
+        is case insensitive this does not change the behaviour of Sherpa
+        scripts, but screen or file output will use the new
+        capitalization.''',
+                 title="Parameter name changes")
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a

@@ -22,7 +22,7 @@ from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplic
 
 
 CIAOVER = "CIAO 4.17"
-XSPECVER = "12.14.0h"
+XSPECVER = "12.14.0i"
 LASTMOD = "December 2024"
 
 
@@ -152,6 +152,8 @@ def is_para(node):
 
 
 XSMODEL_RE = re.compile('^XS[a-z0-9]+$')
+
+XSVERSION_WARNING = re.compile('^This model requires XSPEC 12\.\d\d\.\d or later.$')
 
 
 # Just check that we understand the lniks between reference and target
@@ -1003,8 +1005,14 @@ def convert_versionwarning(block):
         out.set('title', title)
         store_versions["titles"].add(title)
 
+    # Skip the
+    #  "This model requires XSPEC xxx or later."
+    # paragraph.
+    #
+    xspec_version = "This model requires XSPEC 12.14.0 or later."
     if len(toks) > 1:
-        out.text = toks[1]
+        if not re.match(XSVERSION_WARNING, toks[1]):
+            out.text = toks[1]
 
     store_versions[block.tagname].append(out)
 
@@ -1717,6 +1725,13 @@ def find_notes(name, indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
+    # Unfortunately I have not used exactlu the same text for different
+    # versions: 12.14.0 uses
+    #
+    # This model requires XSPEC 12.14.0 or later.
+    #
+    # See also ../helpers.py which also includes this logic.
+    #
     def version(v):
         return 'This model is only available when used with ' + \
             f'XSPEC {v} or later.'
@@ -1738,7 +1753,7 @@ def find_notes(name, indoc):
     v12130 = version('12.13.0')
 
     # These are new to CIAO 4.17
-    v12140 = version('12.14.0')
+    v12140 = "This model requires XSPEC 12.14.0 or later."
 
     # First remove all the old "added in XSPEC x.y.z" lines
     #
@@ -1767,7 +1782,7 @@ def find_notes(name, indoc):
         raise RuntimeError(f"ERR: looks like {name} is unsupported in CIAO")
 
     # We now need to decide whether this is text we want to output
-    # or something we want to change into a 'versionadded' commant.
+    # or something we want to change into a 'versionadded' command.
     #
     # Do we have an XSPEC version relevant to this CIAO release?
     #
@@ -1777,50 +1792,28 @@ def find_notes(name, indoc):
     # CIAO 4.14 uses 12.12.0
     # CIAO 4.15 uses 12.12.0  (actually 12.12.1)
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
-    # CIAO 4.17 is planned to use 12.14.0
+    # CIAO 4.17 is planned to use 12.14.0, which has new models
     #
-    has_version_12110 = False
-    has_version_12120 = False
-
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
 
     # Do we want to process the contents or add them as a versionadded entry?
     #
-    # I am no-longer confident I understand all the complexities here,
-    # as have added code to handle things like "we now support a model
-    # that has been present for a while, but only now can we use it".
-    #
     for para in lnodes:
-        if para.astext() == v12110:
-            has_version_12110 = True
-            continue
+        if v12140 in para.astext():
 
-        if para.astext() == v12120:
-            has_version_12120 = True
+            print(para.astext())
+            raise NotImplementedError("this has got too complex")
+
+            npara = ElementTree.Element("PARA", {'title': 'New in CIAO 4.17'})
+            npara.text = f'The {name} model (added in XSPEC 12.14.0) is new in CIAO 4.17.'
+            store_versions['versionadded'].append(npara)
             continue
 
         for b in make_para_blocks(para):
             out.append(b)
 
         any_notes = True
-
-    if has_version_12110 | has_version_12120:
-        if len(store_versions['versionadded']) > 0:
-            # we special case the thcomp description as the
-            # ..versionadded:: 4.12.2 line isn't meaningful here.
-            #
-            if name == 'xsthcomp':
-                store_versions['versionadded'] = []
-            else:
-                raise RuntimeError("Multiple versions added")
-
-        # Not needed in CIAO 4.15
-        ## para = ElementTree.Element("PARA", {'title': 'New in CIAO 4.14'})
-        ## vstr = '12.11.0' if has_version_12110 else '12.12.0'
-        ## para.text = f'The {name} model (added in XSPEC {vstr}) is new in CIAO 4.14.'
-
-        ## store_versions['versionadded'].append(para)
 
     if any_notes:
         assert len(out) > 0
