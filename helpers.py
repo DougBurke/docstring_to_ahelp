@@ -477,7 +477,7 @@ xspowerlaw.pl
 
         add_para(adesc, '''The default parameter values of a number of
         models have been adjusted to match changes made in XSPEC 12.14.0.
-        Ot particular note are models which now use a default redshift
+        Of particular note are models which now use a default redshift
         if 0.1 rather than 0, and models with a switch parameter which now
         default to 2 rather than 1 (indicating the use of APEC for
         interpolation rather than mekal). The switch parameter may also
