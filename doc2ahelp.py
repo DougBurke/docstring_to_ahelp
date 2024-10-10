@@ -190,6 +190,16 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
 
     nproc = 0
     error_list = []
+
+    # Count the number of commands with some level of annotation
+    # support.
+    #
+    annotations = {"none": 0,     # \ is this worth tracking
+                   "missing": 0,  # / seprately?
+                   "return-only": 0,
+                   "argument-only": 0,
+                   "both": 0}
+
     for name in to_process:
 
         print("## {}".format(name))
@@ -244,6 +254,24 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         if xml is None:
             continue
 
+        # track the annotations (ony do this once we created the
+        # XML version).
+        #
+        if hasattr(sym, "__annotations__"):
+            nann = len(sym.__annotations__)
+            if nann == 0:
+                label = 'none'
+            elif nann == 1 and "return" in sym.__annotations__:
+                label = 'return-only'
+            elif "return" in sym.__annotations__:
+                label = 'both'
+            else:
+                label = 'argument-only'
+        else:
+            label = 'missing'
+
+        annotations[label] += 1
+
         out_name = 'group_sherpa' if name == 'group' else name
         suffix = 'sxml' if dtd == 'sxml' else 'xml'
         outfile = os.path.join(outdir, '{}.{}'.format(out_name, suffix))
@@ -264,6 +292,26 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
     for outfile in [list_sherpa_models(outdir, dtd=dtd),
                     list_xspec_models(outdir, dtd=dtd)]:
         print(f"  {outfile}")
+
+    print("")
+
+    # Dump the annotations
+    nann = sum([v for v in annotations.values()])
+    print(f"Files checked: {nann}")
+
+    def rep(label: str, val: int) -> None:
+        pcen = 100 * val / nann
+        print(f"  {label:18s} : {val:3d}  {pcen:4.1f}%")
+
+    rep("no __annotations__", annotations['missing'])
+    rep("empty", annotations['none'])
+    rep(" <sum> ", annotations['missing'] + annotations['none'])
+    print("  ---")
+    rep("return only", annotations['return-only'])
+    rep("argument only", annotations['argument-only'])
+    rep("both", annotations['both'])
+    rep(" <sum> ", annotations['return-only'] +
+        annotations['argument-only'] + annotations['both'])
 
     print("")
 
