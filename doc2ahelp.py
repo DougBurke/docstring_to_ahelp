@@ -53,6 +53,7 @@ TODO:
 
 from collections import defaultdict
 import os
+from typing import Optional, Union
 
 from sherpa.ui.utils import ModelWrapper
 from sherpa.astro import ui
@@ -65,22 +66,64 @@ from parsers.ahelp import find_metadata
 from helpers import save_doc, list_xspec_models, list_sherpa_models
 
 
+# from sherpa.utils.types import IdType
+
+IdType = int | str
+
+
 def process_symbol(name, sym, dtd='ahelp',
                    annotations="keep",
                    ahelp=None, synonyms=None, debug=False):
 
-    if annotations == "delete" and hasattr(sym, "__annotations__"):
-        # This is a global change, as any future access to the
-        # annotations for this symbol will get None.
-        #
-        sym.__annotations__ = None
+    orig_ann = None
+    if hasattr(sym, "__annotations__"):
+        if annotations == "delete":
+            # This is a global change, as any future access to the
+            # annotations for this symbol will get None.
+            #
+            sym.__annotations__ = None
+
+        elif sym.__annotations__ is None:
+            pass
+
+        elif len(sym.__annotations__) == 0:
+            # What does annotations = {} mean? For now drop it as it
+            # doesn't help us, and it's easiest not to have to worry
+            # about different ways to say "empty".
+            #
+            sym.__annotations__ = None
+
+        else:
+            # temporarily over-ride the annotations
+            #
+            orig_ann = sym.__annotations__
+            sym.__annotations__ = None
+
+    sig, _ = sym_to_sig(name, sym)
+
+    # Restore the annotations, if set. Note that we convert them from
+    # strings, and try to handle Optional/Union -> a | .... This is
+    # not ideal.
+    #
+    if orig_ann is not None:
+        for k, v in orig_ann.items():
+            if v == 'None':
+                orig_ann[k] = None
+                continue
+
+            if v == 'IdType':
+                orig_ann[k] = IdType
+                continue
+
+            if v == 'Optional[IdType]':
+                orig_ann[k] = IdType | None
+
+        sym.__annotations__ = orig_ann
 
     sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
         print("  - has no doc")
         return None
-
-    sig, _ = sym_to_sig(name, sym)
 
     if debug:
         print("---- formats")
@@ -90,7 +133,13 @@ def process_symbol(name, sym, dtd='ahelp',
     if debug:
         print("-- RestructuredText:\n{}".format(rst_doc))
 
+    if orig_ann is not None:
+        annotated_sig, _ = sym_to_sig(name, sym)
+    else:
+        annotated_sig = None
+
     doc = convert_docutils(name, rst_doc, sig, dtd=dtd,
+                           annotated_sig=annotated_sig,
                            symbol=sym, metadata=ahelp,
                            synonyms=synonyms)
     return doc
