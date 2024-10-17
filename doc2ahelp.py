@@ -7,6 +7,7 @@ Usage:
      --debug
      --sxml
      --models
+     --annotations keep | delete
 
 Aim:
 
@@ -65,7 +66,14 @@ from helpers import save_doc, list_xspec_models, list_sherpa_models
 
 
 def process_symbol(name, sym, dtd='ahelp',
+                   annotations="keep",
                    ahelp=None, synonyms=None, debug=False):
+
+    if annotations == "delete" and hasattr(sym, "__annotations__"):
+        # This is a global change, as any future access to the
+        # annotations for this symbol will get None.
+        #
+        sym.__annotations__ = None
 
     sherpa_doc = sym_to_rst(name, sym)
     if sherpa_doc is None:
@@ -90,6 +98,7 @@ def process_symbol(name, sym, dtd='ahelp',
 
 def convert(outdir, dtd='ahelp', modelsonly=False,
             skip_synonyms=False,
+            handle_annotations="keep",
             debug=False, restrict=None):
     """Convert the symbols.
 
@@ -104,6 +113,8 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         in the restrict parameter if both are specified).
     skip_synonyms : bool, optional
         Should synonyms be skipped or not?
+    handle_annotations : str, optional
+        Options are "keep", "delete"
     debug : optional, boool
         If True then print out parsed versions of the symbols
         (expected to be used when restrict is not None but this
@@ -245,6 +256,7 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         try:
             xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
                                  synonyms=syn_names,
+                                 annotations=handle_annotations,
                                  debug=debug)
         except Exception as exc:
             print(" - ERROR PROCESSING: {}".format(exc))
@@ -377,6 +389,11 @@ if __name__ == "__main__":
     parser.add_argument("--models", action="store_true",
                         help="Restrict to Sherpa models only")
 
+    parser.add_argument("--annotations", "-a",
+                        default="keep",
+                        choices=["keep", "delete"],
+                        help="What to do with annotations?")
+
     args = parser.parse_args(sys.argv[1:])
     restrict = args.names
     if restrict is not None:
@@ -384,6 +401,8 @@ if __name__ == "__main__":
 
     dtd = 'sxml' if args.sxml else 'ahelp'
 
+    print(f"Annotation handling: {args.annotations}")
     convert(args.outdir, dtd=dtd, modelsonly=args.models,
+            handle_annotations=args.annotations,
             debug=args.debug,
             restrict=restrict)
