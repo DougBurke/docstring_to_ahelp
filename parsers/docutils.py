@@ -2499,7 +2499,7 @@ def convert_docutils(name, doc, sig,
     ----------
     name : str
     doc
-        The document (resturctured text)
+        The document (restructured text)
     sig : str or None
         The signature of the name (will be over-ridden by the
         document, if given).
