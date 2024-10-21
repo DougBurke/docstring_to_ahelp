@@ -53,10 +53,19 @@ TODO:
 
 from collections import defaultdict
 import os
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Sequence, Union
 
-from sherpa.ui.utils import ModelWrapper
+import numpy as np
+
+from sherpa.astro.data import DataARF, DataPHA, DataRMF
 from sherpa.astro import ui
+from sherpa.data import Data
+from sherpa.fit import FitResults
+from sherpa.models.model import Model
+from sherpa.optmethods import OptMethod
+from sherpa.plot import MultiPlot
+from sherpa.stats import Stat
+from sherpa.ui.utils import ModelWrapper
 
 from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted, find_synonyms
 from parsers.rst import parse_restructured
@@ -66,9 +75,16 @@ from parsers.ahelp import find_metadata
 from helpers import save_doc, list_xspec_models, list_sherpa_models
 
 
+# Replace the actual Sherpa version, which uses Python 3.9 compatible
+# syntax, with Python 3.10 versions:
+#
+# from sherpa.ui.utils import ModelType
 # from sherpa.utils.types import IdType
+# from sherpa.utils.random import RandomType
 
 IdType = int | str
+RandomType = np.random.Generator | np.random.RandomState
+ModelType = Model | str
 
 
 def process_symbol(name, sym, dtd='ahelp',
@@ -111,12 +127,152 @@ def process_symbol(name, sym, dtd='ahelp',
                 orig_ann[k] = None
                 continue
 
+            if v == 'Any':
+                orig_ann[k] = Any
+                continue
+
+            if v == 'bool':
+                orig_ann[k] = bool
+                continue
+
+            if v == 'int':
+                orig_ann[k] = int
+                continue
+
+            if v == 'Optional[int]':
+                orig_ann[k] = int | None
+                continue
+
+            if v == 'str':
+                orig_ann[k] = str
+                continue
+
+            if v == 'Optional[str]':
+                orig_ann[k] = str | None
+                continue
+
+            if v == 'list[str]':
+                orig_ann[k] = list[str]
+                continue
+
+            if v == 'Sequence[str]':
+                assert False  # do we need this
+                orig_ann[k] = Sequence[str]
+                continue
+
+            if v == 'Optional[Sequence[str]]':
+                orig_ann[k] = Sequence[str] | None
+                continue
+
+            if v == 'dict[str, np.ndarray]':
+                orig_ann[k] = dict[str, np.ndarray]
+                continue
+
+            if v == 'tuple[tuple[np.ndarray, ...], np.ndarray]':
+                orig_ann[k] = tuple[tuple[np.ndarray, ...], np.ndarray]
+                continue
+
             if v == 'IdType':
                 orig_ann[k] = IdType
                 continue
 
+            if v == 'list[IdType]':
+                orig_ann[k] = list[IdType]
+                continue
+
             if v == 'Optional[IdType]':
                 orig_ann[k] = IdType | None
+                continue
+
+            if v == 'Sequence[IdType]':
+                orig_ann[k] = Sequence[IdType]
+                continue
+
+            if v == 'Optional[Sequence[IdType]]':
+                orig_ann[k] = Sequence[IdType] | None
+                continue
+
+            if v == 'Union[IdType, Sequence[IdType]]':
+                orig_ann[k] = IdType | Sequence[IdType]
+                continue
+
+            if v == 'Optional[Union[IdType, Sequence[IdType]]]':
+                orig_ann[k] = IdType | Sequence[IdType] | None
+                continue
+
+            if v == 'Stat':
+                orig_ann[k] = Stat
+                continue
+
+            if v == 'Union[str, Stat]':
+                orig_ann[k] = Union[str, Stat]
+                continue
+
+            if v == 'OptMethod':
+                orig_ann[k] = OptMethod
+                continue
+
+            if v == 'Union[OptMethod, str]':
+                orig_ann[k] = Union[OptMethod, str]
+                continue
+
+            if v == 'Optional[RandomType]':
+                orig_ann[k] = RandomType | None
+                continue
+
+            if v == 'Data':
+                orig_ann[k] = Data
+                continue
+
+            if v == 'DataARF':
+                orig_ann[k] = DataARF
+                continue
+
+            if v == 'DataPHA':
+                orig_ann[k] = DataPHA
+                continue
+
+            if v == 'DataRMF':
+                orig_ann[k] = DataRMF
+                continue
+
+            if v == 'Model':
+                orig_ann[k] = Model
+                continue
+
+            if v == 'FitResults':
+                orig_ann[k] = FitResults
+                continue
+
+            if v == 'MultiPlot':
+                orig_ann[k] = MultiPlot
+                continue
+
+            # This is a bug-let in 4.17.0 - see
+            # https://github.com/sherpa/sherpa/pull/2181 for a fix
+            if v == 'Multiplot':
+                orig_ann[k] = MultiPlot
+                continue
+
+            if v == 'ModelType':
+                orig_ann[k] = ModelType
+                continue
+
+            if v == 'Callable':
+                orig_ann[k] = Callable
+                continue
+
+            if v == 'Callable[[str, Model], None]':
+                orig_ann[k] = Callable[[str, Model], None]
+                continue
+
+            if v == 'Optional[Callable[[str, Model], None]]':
+                orig_ann[k] = Callable[[str, Model], None] | None
+                continue
+
+            if isinstance(v, str):
+                # let me know uf there's more annotations to fix
+                assert False, (k, v, type(v))
 
         sym.__annotations__ = orig_ann
 

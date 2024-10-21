@@ -1263,6 +1263,10 @@ def find_syntax(name, sig, indoc):
     if not txt.startswith('{}('.format(name)):
         return argline, indoc
 
+    # I do not think we have any files that hit this section,
+    # so ignore for now.
+    #
+    assert False, f"Need to understand this: {txt}"
     assert txt.endswith(')'), txt
 
     dbg("- using SYNTAX block from file", info='WARN')
@@ -1316,6 +1320,37 @@ def add_synonyms_to_syntax(syntax, synonyms):
     ElementTree.SubElement(syntax, 'LINE').text = 'Alias: ' + synonyms[0]
 
     return syntax
+
+
+def add_xspec_model_to_syntax(syntax, name, symbol):
+    """Add the info about XSPEC models."""
+
+    ElementTree.SubElement(syntax, 'LINE').text = ''
+
+    if issubclass(symbol.modeltype, XSAdditiveModel):
+        mdesc = 'an additive'
+    elif issubclass(symbol.modeltype, XSMultiplicativeModel):
+        mdesc = 'a multiplicative'
+    elif issubclass(symbol.modeltype, XSConvolutionKernel):
+        mdesc = 'a convolution'
+    else:
+        raise RuntimeError(f"Unexpected XSPEC model component: {name}")
+
+    mline = f'The {name} model is {mdesc} model component.'
+    ElementTree.SubElement(syntax, 'LINE').text = mline
+
+
+def add_annotated_sig_to_syntax(syntax, annotated_sig):
+    """Add the annotated signature to the SYNTAX block."""
+
+    assert annotated_sig is not None
+    for l in ["",
+              "The types of the arguments are:",
+              "",
+              # The LINE block strips leading/trailing spaces
+              str(annotated_sig)
+              ]:
+        ElementTree.SubElement(syntax, 'LINE').text = l
 
 
 def augment_examples(examples, symbol):
@@ -2551,20 +2586,6 @@ def convert_docutils(name, doc, sig,
     synopsis, refkeywords, nodes = find_synopsis(nodes)
     desc, nodes = find_desc(nodes)
 
-    # Do we add any information about the typing of the routine?
-    #
-    if annotated_sig is not None:
-        if desc is None:
-            desc = ElementTree.Element('DESC')
-
-        apara = ElementTree.Element('PARA')
-        apara.text = 'The types of the arguments are:'
-        vpara = ElementTree.Element('VERBATIM')
-        vpara.text = f'    {annotated_sig}'
-
-        desc.insert(0, apara)
-        desc.insert(1, vpara)
-
     # For XSPEC models, add a note about
     # additive/multiplicative/convolution to the SYNTAX block (could
     # go in the description but let's try here for now).
@@ -2573,20 +2594,9 @@ def convert_docutils(name, doc, sig,
        issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel)):
         assert syntax is not None
 
-        ElementTree.SubElement(syntax, 'LINE').text = ''
+        add_xspec_model_to_syntax(syntax, name, symbol)
 
-        mline = 'The {} model is '.format(name)
-        if issubclass(symbol.modeltype, XSAdditiveModel):
-            mline += 'an additive'
-        elif issubclass(symbol.modeltype, XSMultiplicativeModel):
-            mline += 'a multiplicative'
-        elif issubclass(symbol.modeltype, XSConvolutionKernel):
-            mline += 'a convolution'
-        else:
-            raise RuntimeError("Unexpected XSPEC model component: {}".format(name))
-
-        mline += ' model component.'
-        ElementTree.SubElement(syntax, 'LINE').text = mline
+    add_synonyms_to_syntax(syntax, synonyms)
 
     # Can have parameters and then a "raises" section, or just one,
     # or neither. Really they should both be before the See Also
@@ -2618,8 +2628,18 @@ def convert_docutils(name, doc, sig,
     # to support experimentation.
     #
     params = extract_params(fieldlist1)
-    add_synonyms_to_syntax(syntax, synonyms)
+
+    # What is the best way to describe parameters when we also
+    # have an annotated signature? They do not always cover the
+    # same elements so we could
+    #  - display both
+    #  - display just the parameters as likely to be more informative
+    #  - display just the annotations
+    #
     add_pars_to_syntax(syntax, fieldlist1)
+
+    if annotated_sig is not None:
+        add_annotated_sig_to_syntax(syntax, annotated_sig)
 
     # support see-also here
     #
