@@ -22,7 +22,7 @@ from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplic
 
 
 CIAOVER = "CIAO 4.17"
-XSPECVER = "12.14.0i"
+XSPECVER = "12.14.0k"
 LASTMOD = "December 2024"
 
 
@@ -1725,7 +1725,7 @@ def find_notes(name, indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
-    # Unfortunately I have not used exactlu the same text for different
+    # Unfortunately I have not used exactly the same text for different
     # versions: 12.14.0 uses
     #
     # This model requires XSPEC 12.14.0 or later.
@@ -1792,7 +1792,7 @@ def find_notes(name, indoc):
     # CIAO 4.14 uses 12.12.0
     # CIAO 4.15 uses 12.12.0  (actually 12.12.1)
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
-    # CIAO 4.17 is planned to use 12.14.0, which has new models
+    # CIAO 4.17 uses 12.14.0k, which has new models
     #
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
