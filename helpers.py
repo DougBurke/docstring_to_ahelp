@@ -122,7 +122,7 @@ def add_model_list(caption, models, xspec=True,
 
             # CIAO 4.15 went out with 12.12.1c
             #      4.16 is 12.13.1e
-            #      4.17    12.14.0i ?
+            #      4.17    12.14.0k
             new = is_new(12, 14, 0)
 
             # As we are not showing the new column we don't do this
@@ -249,7 +249,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         return out
 
     # do we want the patch version here? Ideally.
-    xspec_major_version = '12.14.0i'
+    xspec_major_version = '12.14.0k'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
