@@ -1099,7 +1099,8 @@ def convert_field_body(fbody):
 
     assert fbody.tagname == 'field_body'
 
-    assert all([n.tagname == 'paragraph' for n in fbody]), fbody
+    if not all([n.tagname == 'paragraph' for n in fbody]):
+        raise ValueError(f"Expected only paragragh in {fbody}")
 
     # could handle multiple blocks, but would need to return [Element]
     #
@@ -1274,6 +1275,7 @@ def find_syntax(name, sig, indoc):
     return out, indoc[1:]
 
 
+# Check if this is still used
 def add_pars_to_syntax(syntax, fieldlist):
     """Do we add a summary of the parameter information to SYNTAX?
 
@@ -1340,6 +1342,7 @@ def add_xspec_model_to_syntax(syntax, name, symbol):
     ElementTree.SubElement(syntax, 'LINE').text = mline
 
 
+# Check if this is still used.
 def add_annotated_sig_to_syntax(syntax, annotated_sig):
     """Add the annotated signature to the SYNTAX block."""
 
@@ -2182,7 +2185,8 @@ def find_examples(indoc):
     return out, rnodes
 
 
-def extract_params(fieldinfo):
+def extract_params(fieldinfo,
+                   annotated_sig=None):
     """Extract the parameter information from a fieldlist.
 
     We used to use paragraphs, but now use a table for the
@@ -2240,6 +2244,19 @@ def extract_params(fieldinfo):
     adesc = ElementTree.Element("ADESC",
                                 {'title': '{}S'.format(value.upper())})
 
+    if annotated_sig is not None:
+        p = ElementTree.SubElement(adesc, 'PARA')
+        p.text = 'The types of the arguments are:'
+
+        # Make this a separate block to add a blank line between this
+        # and the previous paragraph. Could make this a VERBATIM
+        # blocl instead.
+        #
+        p = ElementTree.SubElement(adesc, 'PARA')
+        syn = ElementTree.SubElement(p, 'SYNTAX')
+        sline = ElementTree.SubElement(syn, 'LINE')
+        sline.text = annotated_sig
+
     p = ElementTree.SubElement(adesc, 'PARA')
     if nparams == 0:
         p.text = 'This {} has no {}s'.format(name, value)
@@ -2251,10 +2268,24 @@ def extract_params(fieldinfo):
     if nparams > 0:
         tbl = ElementTree.SubElement(adesc, 'TABLE')
 
+        # We could directly query the signature for information
+        # on the default values.
+        #
+
+        # Do we have any "type" information?
+        #
+        has_type = False
+        for par in parinfo:
+            if 'type' in par:
+                has_type = True
+                break
+
         # add a fake first row to set up the headers
         #
         row0 = ElementTree.SubElement(tbl, 'ROW')
         ElementTree.SubElement(row0, 'DATA').text = value.capitalize()
+        if has_type:
+            ElementTree.SubElement(row0, 'DATA').text = 'Type information'
         ElementTree.SubElement(row0, 'DATA').text = 'Definition'
 
         for par in parinfo:
@@ -2262,9 +2293,18 @@ def extract_params(fieldinfo):
             row = ElementTree.SubElement(tbl, 'ROW')
             ElementTree.SubElement(row, 'DATA').text = par['name']
 
-            # Keys are name, param, and type. At present type is not used.
+            # Keys are name, param, and type.
             #          name, ivar
             #
+            if has_type:
+                try:
+                    tinfo = par['type']
+                    conv = convert_field_body(tinfo)
+                    txt = conv.text
+                except KeyError:
+                    txt = ''
+
+                ElementTree.SubElement(row, 'DATA').text = txt
 
             if 'param' in par:
                 block = convert_field_body(par['param'])
@@ -2627,19 +2667,14 @@ def convert_docutils(name, doc, sig,
     # This has been separated fro the extraction of the field list
     # to support experimentation.
     #
-    params = extract_params(fieldlist1)
+    params = extract_params(fieldlist1,
+                            annotated_sig=annotated_sig)
 
-    # What is the best way to describe parameters when we also
-    # have an annotated signature? They do not always cover the
-    # same elements so we could
-    #  - display both
-    #  - display just the parameters as likely to be more informative
-    #  - display just the annotations
+    # Do we want to include the parameter overview in the syntax
+    # block? We used to, but let's try to just have those in the
+    # params block.
     #
-    add_pars_to_syntax(syntax, fieldlist1)
-
-    if annotated_sig is not None:
-        add_annotated_sig_to_syntax(syntax, annotated_sig)
+    # add_pars_to_syntax(syntax, fieldlist1)
 
     # support see-also here
     #
