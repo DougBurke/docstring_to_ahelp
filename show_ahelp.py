@@ -22,9 +22,9 @@ from xml.etree.ElementTree import dump
 
 from sherpa.astro import ui
 
-from parsers.sherpa import sym_to_sig, sym_to_rst, unwanted
-from parsers.rst import parse_restructured
-from parsers.docutils import convert_docutils
+from parsers.sherpa import unwanted
+
+from helpers import process_symbol
 
 
 def convert_and_view(symbol: str) -> None:
@@ -44,17 +44,7 @@ def convert_and_view(symbol: str) -> None:
     if unwanted(symbol, sym):
         raise ValueError(f"Apparently <{symbol}> is unwanted")
 
-    sig, _ = sym_to_sig(symbol, sym)
-
-    sherpa_doc = sym_to_rst(symbol, sym)
-    if sherpa_doc is None:
-        raise ValueError(f"symbol <{symbol}> has no documentation!")
-
-    rst_doc = parse_restructured(symbol, sherpa_doc)
-    doc = convert_docutils(symbol, rst_doc, sig, dtd='ahelp',
-                           symbol=sym, metadata=None,
-                           synonyms=None)
-
+    doc = process_symbol(symbol, sym)
     dump(doc)
 
 

@@ -1,7 +1,11 @@
 """Utility routines."""
 
 import os
+from inspect import signature
 import sys
+from typing import Any, Callable, Optional, Sequence, Union
+
+import numpy as np
 
 from xml.etree import ElementTree
 
@@ -9,8 +13,33 @@ from sherpa.ui.utils import ModelWrapper
 from sherpa.astro.xspec import XSModel, XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel
 from sherpa.astro import ui
 
+from sherpa.astro.data import DataARF, DataPHA, DataRMF
+from sherpa.data import Data
+from sherpa.fit import FitResults
+from sherpa.models.model import Model
+from sherpa.optmethods import OptMethod
+from sherpa.plot import MultiPlot
+from sherpa.stats import Stat
+from sherpa.ui.utils import ModelWrapper
+
+
 from parsers.ahelp import find_metadata
-from parsers.docutils import merge_metadata
+from parsers.docutils import convert_docutils, merge_metadata
+from parsers.rst import parse_restructured
+from parsers.sherpa import sym_to_rst, sym_to_sig
+
+
+# Replace the actual Sherpa version, which uses Python 3.9 compatible
+# syntax, with Python 3.10 versions:
+#
+# from sherpa.ui.utils import ModelType
+# from sherpa.utils.types import IdType
+# from sherpa.utils.random import RandomType
+
+IdType = int | str
+RandomType = np.random.Generator | np.random.RandomState
+ModelType = Model | str
+
 
 
 # CIAO 4.17
@@ -704,3 +733,220 @@ def list_sherpa_models(outdir, dtd='ahelp'):
     save_doc(outfile, outdoc)
 
     return outfile
+
+
+def process_symbol(name, sym, dtd='ahelp',
+                   annotations="keep",
+                   ahelp=None, synonyms=None, debug=False):
+
+    orig_ann = None
+    if hasattr(sym, "__annotations__"):
+        if annotations == "delete":
+            # This is a global change, as any future access to the
+            # annotations for this symbol will get None.
+            #
+            sym.__annotations__ = None
+
+        elif sym.__annotations__ is None:
+            pass
+
+        elif len(sym.__annotations__) == 0:
+            # What does annotations = {} mean? For now drop it as it
+            # doesn't help us, and it's easiest not to have to worry
+            # about different ways to say "empty".
+            #
+            sym.__annotations__ = None
+
+        else:
+            # temporarily over-ride the annotations
+            #
+            orig_ann = sym.__annotations__
+            sym.__annotations__ = None
+
+    sig, _ = sym_to_sig(name, sym)
+
+    # Restore the annotations, if set. Note that we convert them from
+    # strings, and try to handle Optional/Union -> a | .... This is
+    # not ideal.
+    #
+    if orig_ann is not None:
+        for k, v in orig_ann.items():
+            if v == 'None':
+                orig_ann[k] = None
+                continue
+
+            if v == 'Any':
+                orig_ann[k] = Any
+                continue
+
+            if v == 'bool':
+                orig_ann[k] = bool
+                continue
+
+            if v == 'int':
+                orig_ann[k] = int
+                continue
+
+            if v == 'Optional[int]':
+                orig_ann[k] = int | None
+                continue
+
+            if v == 'str':
+                orig_ann[k] = str
+                continue
+
+            if v == 'Optional[str]':
+                orig_ann[k] = str | None
+                continue
+
+            if v == 'list[str]':
+                orig_ann[k] = list[str]
+                continue
+
+            if v == 'Sequence[str]':
+                assert False  # do we need this
+                orig_ann[k] = Sequence[str]
+                continue
+
+            if v == 'Optional[Sequence[str]]':
+                orig_ann[k] = Sequence[str] | None
+                continue
+
+            if v == 'dict[str, np.ndarray]':
+                orig_ann[k] = dict[str, np.ndarray]
+                continue
+
+            if v == 'tuple[tuple[np.ndarray, ...], np.ndarray]':
+                orig_ann[k] = tuple[tuple[np.ndarray, ...], np.ndarray]
+                continue
+
+            if v == 'IdType':
+                orig_ann[k] = IdType
+                continue
+
+            if v == 'list[IdType]':
+                orig_ann[k] = list[IdType]
+                continue
+
+            if v == 'Optional[IdType]':
+                orig_ann[k] = IdType | None
+                continue
+
+            if v == 'Sequence[IdType]':
+                orig_ann[k] = Sequence[IdType]
+                continue
+
+            if v == 'Optional[Sequence[IdType]]':
+                orig_ann[k] = Sequence[IdType] | None
+                continue
+
+            if v == 'Union[IdType, Sequence[IdType]]':
+                orig_ann[k] = IdType | Sequence[IdType]
+                continue
+
+            if v == 'Optional[Union[IdType, Sequence[IdType]]]':
+                orig_ann[k] = IdType | Sequence[IdType] | None
+                continue
+
+            if v == 'Stat':
+                orig_ann[k] = Stat
+                continue
+
+            if v == 'Union[str, Stat]':
+                orig_ann[k] = Union[str, Stat]
+                continue
+
+            if v == 'OptMethod':
+                orig_ann[k] = OptMethod
+                continue
+
+            if v == 'Union[OptMethod, str]':
+                orig_ann[k] = Union[OptMethod, str]
+                continue
+
+            if v == 'Optional[RandomType]':
+                orig_ann[k] = RandomType | None
+                continue
+
+            if v == 'Data':
+                orig_ann[k] = Data
+                continue
+
+            if v == 'DataARF':
+                orig_ann[k] = DataARF
+                continue
+
+            if v == 'DataPHA':
+                orig_ann[k] = DataPHA
+                continue
+
+            if v == 'DataRMF':
+                orig_ann[k] = DataRMF
+                continue
+
+            if v == 'Model':
+                orig_ann[k] = Model
+                continue
+
+            if v == 'FitResults':
+                orig_ann[k] = FitResults
+                continue
+
+            if v == 'MultiPlot':
+                orig_ann[k] = MultiPlot
+                continue
+
+            # This is a bug-let in 4.17.0 - see
+            # https://github.com/sherpa/sherpa/pull/2181 for a fix
+            if v == 'Multiplot':
+                orig_ann[k] = MultiPlot
+                continue
+
+            if v == 'ModelType':
+                orig_ann[k] = ModelType
+                continue
+
+            if v == 'Callable':
+                orig_ann[k] = Callable
+                continue
+
+            if v == 'Callable[[str, Model], None]':
+                orig_ann[k] = Callable[[str, Model], None]
+                continue
+
+            if v == 'Optional[Callable[[str, Model], None]]':
+                orig_ann[k] = Callable[[str, Model], None] | None
+                continue
+
+            if isinstance(v, str):
+                # let me know uf there's more annotations to fix
+                assert False, (k, v, type(v))
+
+        sym.__annotations__ = orig_ann
+
+    sherpa_doc = sym_to_rst(name, sym)
+    if sherpa_doc is None:
+        print("  - has no doc")
+        return None
+
+    if debug:
+        print("---- formats")
+        print("-- Sherpa:\n{}".format(sherpa_doc))
+
+    rst_doc = parse_restructured(name, sherpa_doc)
+    if debug:
+        print("-- RestructuredText:\n{}".format(rst_doc))
+
+    if orig_ann is not None:
+        # annotated_sig, _ = sym_to_sig(name, sym)
+        actual_sig = signature(sym)
+    else:
+        # annotated_sig = None
+        actual_sig = None
+
+    doc = convert_docutils(name, rst_doc, sig, dtd=dtd,
+                           actual_sig=actual_sig,
+                           # annotated_sig=annotated_sig,
+                           symbol=sym, metadata=ahelp,
+                           synonyms=synonyms)
+    return doc

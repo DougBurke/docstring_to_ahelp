@@ -10,15 +10,26 @@ TODO:
 """
 
 from collections import OrderedDict
+from inspect import Signature
+import inspect
 import re
 import sys
+import types
+import typing
 
 from xml.etree import ElementTree
 
 from docutils import nodes
 
+from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, \
+    XSMultiplicativeModel
+from sherpa.data import Data
+from sherpa.fit import FitResults
+from sherpa.models.model import Model
+from sherpa.optmethods import OptMethod
+from sherpa.plot import MultiPlot
+from sherpa.stats import Stat
 from sherpa.ui.utils import ModelWrapper
-from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
 CIAOVER = "CIAO 4.17"
@@ -2185,8 +2196,141 @@ def find_examples(indoc):
     return out, rnodes
 
 
+# assume minimum-length to avoid removing valid text
+#    0x7ff6d11ee660
+HEX_PAT = re.compile('0x[0-9a-f]{8,16}')
+
+def remove_address(arg: str) -> str:
+    """Replace 0xHEX by 0x..."""
+
+    return re.sub(HEX_PAT, '0x...', arg)
+
+
+def annotate_type(ann) -> str:
+    """There must be an easier way to do this"""
+
+    if ann is None:
+        return 'None'
+
+    def check(val):
+        return issubclass(type(ann), val)
+
+    def clean(arg):
+        """Remove all occurrences of 'typing.'"""
+        out = str(arg)
+        return out.replace('typing.', '')
+
+    # Ugh - these checks are both annoying and awkward and I don't
+    # have the time to step back and go "this is the wrong way to do
+    # this".
+    #
+    if ann == type(None):
+        return 'None'
+
+    if ann == typing.Any:
+        return 'Any'
+
+    # Check we catch this correctly
+    if ann == typing.Callable:
+        return clean(ann)
+
+    if type(ann) == typing._UnionGenericAlias:
+        # Try to replace Union[a, b, ...] with a | b | ...
+        # but this relies on me understanding the setup here,
+        # which I don't!
+        #
+        args = [annotate_type(arg) for arg in ann.__args__]
+        return " | ".join(args)
+
+    if type(ann) in [types.UnionType, types.GenericAlias,
+                     typing._GenericAlias,
+                     typing._CallableGenericAlias]:
+        return clean(ann)
+
+    if issubclass(ann, (bool, int, float, str)):
+        return ann.__name__
+
+    if issubclass(ann, (Data, FitResults, Model, MultiPlot, OptMethod,
+                        Stat)):
+        return ann.__name__
+
+    raise ValueError(f"Unknown annotation {type(ann)} '{ann}'")
+    # return 'UNKNOWN'
+
+
+def split_sig(name: str, sig: Signature) -> list[str]:
+    """Do we split up a signature?"""
+
+    # Assume we have
+    #    symbol(par1[: ...][ = ...], ...)[ -> ...]
+    #
+    # We want to break in          ^
+    # but there can be commas in the type or default value
+    #
+    out = []
+
+    spacer = "   "
+    current = f"{spacer}{name}("
+    namelen = len(name) + len(spacer)
+    indent = " " * (namelen + 1)
+    first = True
+    for pname, par in sig.parameters.items():
+        if first:
+            first = False
+        else:
+            out.append(current + ",")
+            current = indent
+
+        current += pname
+        if par.annotation != inspect._empty:
+            # print(f"{pname} --> {par.annotation}  {type(par.annotation)}")  # DBG
+            current += ": " + annotate_type(par.annotation)
+
+        if par.default != inspect._empty:
+            current += f" = {remove_address(repr(par.default))}"
+
+    # If there's no return annotation we can just end the current
+    # item with ")" and leave.
+    #
+    if sig.return_annotation == inspect._empty:
+        current += ")"
+        out.append(current)
+        return out
+
+    # print(f"return --> {sig.return_annotation}  {type(sig.return_annotation)}")  # DBG
+    retval = ") -> " + annotate_type(sig.return_annotation)
+
+    if first:
+        # No arguments, so include the output annotation
+        #
+        current += retval
+        out.append(current)
+        return out
+
+    # Multiple arguments so place the return annotation on a new line
+    # (and indent one less than indent so that matches opening bracket).
+    #
+    out.append(current)
+    current = ' ' * namelen + retval
+    out.append(current)
+    return out
+
+
+def add_syntax_as_para(adesc, name: str, sig: Signature):
+    "Add information about the sig to the parameters block."
+
+    p = ElementTree.SubElement(adesc, 'PARA')
+    p.text = 'The types of the arguments are:'
+
+    # Use a VERBATIM block to make the spacing work out.
+    #
+    out = ElementTree.SubElement(adesc, 'VERBATIM')
+    out.text = "\n".join(split_sig(name, sig))
+
+
 def extract_params(fieldinfo,
-                   annotated_sig=None):
+                   name: str,
+                   sig: Signature | None = None):
     """Extract the parameter information from a fieldlist.
 
     We used to use paragraphs, but now use a table for the
@@ -2211,10 +2355,10 @@ def extract_params(fieldinfo,
         return None
 
     if is_attrs:
-        name = 'object'
+        funcname = 'object'
         value = 'attribute'
     else:
-        name = 'function'
+        funcname = 'function'
         value = 'parameter'
 
     # For now only handle the simple case for the return values
@@ -2244,26 +2388,16 @@ def extract_params(fieldinfo,
     adesc = ElementTree.Element("ADESC",
                                 {'title': '{}S'.format(value.upper())})
 
-    if annotated_sig is not None:
-        p = ElementTree.SubElement(adesc, 'PARA')
-        p.text = 'The types of the arguments are:'
-
-        # Make this a separate block to add a blank line between this
-        # and the previous paragraph. Could make this a VERBATIM
-        # blocl instead.
-        #
-        p = ElementTree.SubElement(adesc, 'PARA')
-        syn = ElementTree.SubElement(p, 'SYNTAX')
-        sline = ElementTree.SubElement(syn, 'LINE')
-        sline.text = annotated_sig
+    if sig is not None:
+        add_syntax_as_para(adesc, name, sig)
 
     p = ElementTree.SubElement(adesc, 'PARA')
     if nparams == 0:
-        p.text = 'This {} has no {}s'.format(name, value)
+        p.text = 'This {} has no {}s'.format(funcname, value)
     elif nparams == 1:
-        p.text = 'The {} for this {} is:'.format(value, name)
+        p.text = 'The {} for this {} is:'.format(value, funcname)
     else:
-        p.text = 'The {}s for this {} are:'.format(value, name)
+        p.text = 'The {}s for this {} are:'.format(value, funcname)
 
     if nparams > 0:
         tbl = ElementTree.SubElement(adesc, 'TABLE')
@@ -2565,8 +2699,11 @@ def merge_metadata(xmlattrs, metadata=None):
     return xmlattrs
 
 
-def convert_docutils(name, doc, sig,
-                     annotated_sig=None,
+def convert_docutils(name: str,
+                     doc,
+                     sig: str,
+                     # annotated_sig=None,
+                     actual_sig: Signature | None = None,
                      symbol=None, metadata=None, synonyms=None,
                      dtd='ahelp'):
     """Given the docutils documentation, convert to ahelp DTD.
@@ -2581,6 +2718,8 @@ def convert_docutils(name, doc, sig,
         document, if given).
     annotated_sig
         The annotation signature, if present.
+    actual_sig : Signature
+        The annotated signature object.
     symbol
         The symbol to document (e.g. sherpa.astro.ui.load_table or
         sherpa.astro.ui.xsapec) or None.
@@ -2667,8 +2806,7 @@ def convert_docutils(name, doc, sig,
     # This has been separated fro the extraction of the field list
     # to support experimentation.
     #
-    params = extract_params(fieldlist1,
-                            annotated_sig=annotated_sig)
+    params = extract_params(fieldlist1, name, actual_sig)
 
     # Do we want to include the parameter overview in the syntax
     # block? We used to, but let's try to just have those in the
