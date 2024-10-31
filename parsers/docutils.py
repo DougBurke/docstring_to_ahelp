@@ -2336,6 +2336,10 @@ def extract_params(fieldinfo,
     We used to use paragraphs, but now use a table for the
     parameter/attribute values.
 
+    The sig argument is currently unused as for CIAO 4.17 it
+    was felt to add no extra inforamtion to the fieldinfo
+    data. This can be reviewed for 4.18.
+
     """
 
     if fieldinfo is None:
@@ -2388,8 +2392,10 @@ def extract_params(fieldinfo,
     adesc = ElementTree.Element("ADESC",
                                 {'title': '{}S'.format(value.upper())})
 
-    if sig is not None:
-        add_syntax_as_para(adesc, name, sig)
+    # For CIAO 4.17 we do not add this information.
+    #
+    # if sig is not None:
+    #     add_syntax_as_para(adesc, name, sig)
 
     p = ElementTree.SubElement(adesc, 'PARA')
     if nparams == 0:
