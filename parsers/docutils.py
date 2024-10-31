@@ -10,15 +10,26 @@ TODO:
 """
 
 from collections import OrderedDict
+from inspect import Signature
+import inspect
 import re
 import sys
+import types
+import typing
 
 from xml.etree import ElementTree
 
 from docutils import nodes
 
+from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, \
+    XSMultiplicativeModel
+from sherpa.data import Data
+from sherpa.fit import FitResults
+from sherpa.models.model import Model
+from sherpa.optmethods import OptMethod
+from sherpa.plot import MultiPlot
+from sherpa.stats import Stat
 from sherpa.ui.utils import ModelWrapper
-from sherpa.astro.xspec import XSAdditiveModel, XSConvolutionKernel, XSMultiplicativeModel
 
 
 CIAOVER = "CIAO 4.17"
@@ -1099,7 +1110,8 @@ def convert_field_body(fbody):
 
     assert fbody.tagname == 'field_body'
 
-    assert all([n.tagname == 'paragraph' for n in fbody]), fbody
+    if not all([n.tagname == 'paragraph' for n in fbody]):
+        raise ValueError(f"Expected only paragragh in {fbody}")
 
     # could handle multiple blocks, but would need to return [Element]
     #
@@ -1263,6 +1275,10 @@ def find_syntax(name, sig, indoc):
     if not txt.startswith('{}('.format(name)):
         return argline, indoc
 
+    # I do not think we have any files that hit this section,
+    # so ignore for now.
+    #
+    assert False, f"Need to understand this: {txt}"
     assert txt.endswith(')'), txt
 
     dbg("- using SYNTAX block from file", info='WARN')
@@ -1270,6 +1286,7 @@ def find_syntax(name, sig, indoc):
     return out, indoc[1:]
 
 
+# Check if this is still used
 def add_pars_to_syntax(syntax, fieldlist):
     """Do we add a summary of the parameter information to SYNTAX?
 
@@ -1300,22 +1317,36 @@ def add_pars_to_syntax(syntax, fieldlist):
     return syntax
 
 
-def add_synonyms_to_syntax(syntax, synonyms):
-    """Do we note any synonyms?
-
-    """
-
-    if syntax is None or synonyms is None:
-        return syntax
-
-    # Could handle multiple, but only expect 1 so note if this
-    # changes.
-    assert len(synonyms) == 1, synonyms
+def add_xspec_model_to_syntax(syntax, name, symbol):
+    """Add the info about XSPEC models."""
 
     ElementTree.SubElement(syntax, 'LINE').text = ''
-    ElementTree.SubElement(syntax, 'LINE').text = 'Alias: ' + synonyms[0]
 
-    return syntax
+    if issubclass(symbol.modeltype, XSAdditiveModel):
+        mdesc = 'an additive'
+    elif issubclass(symbol.modeltype, XSMultiplicativeModel):
+        mdesc = 'a multiplicative'
+    elif issubclass(symbol.modeltype, XSConvolutionKernel):
+        mdesc = 'a convolution'
+    else:
+        raise RuntimeError(f"Unexpected XSPEC model component: {name}")
+
+    mline = f'The {name} model is {mdesc} model component.'
+    ElementTree.SubElement(syntax, 'LINE').text = mline
+
+
+# Check if this is still used.
+def add_annotated_sig_to_syntax(syntax, annotated_sig):
+    """Add the annotated signature to the SYNTAX block."""
+
+    assert annotated_sig is not None
+    for l in ["",
+              "The types of the arguments are:",
+              "",
+              # The LINE block strips leading/trailing spaces
+              str(annotated_sig)
+              ]:
+        ElementTree.SubElement(syntax, 'LINE').text = l
 
 
 def augment_examples(examples, symbol):
@@ -1404,13 +1435,15 @@ def find_synopsis(indoc):
     return out, keywords, indoc[1:]
 
 
-def find_desc(indoc):
+def find_desc(indoc, synonyms=None):
     """Return the basic description, if present, and the remaining document.
 
     Parameters
     ----------
     indoc : list of nodes
         The document.
+    synonyms : list of str or None
+        Any synonyms.
 
     Returns
     -------
@@ -1434,10 +1467,22 @@ def find_desc(indoc):
         return x.tagname not in ['rubric', 'field_list', 'container', 'seealso']
 
     pnodes, rnodes = splitWhile(want, indoc)
-    if len(pnodes) == 0:
+    if len(pnodes) == 0 and synonyms is None:
         return None, indoc
 
     out = ElementTree.Element('DESC')
+
+    # Add in any synonyms
+    if synonyms is not None:
+        # Technically can have multiple, but in reality we only have
+        # pairs.
+        assert len(synonyms) == 1, synonyms
+
+        p = ElementTree.Element('PARA')
+        p.text = f"The function is also called {synonyms[0]}()."
+
+        out.append(p)
+
     for para in pnodes:
         for b in make_para_blocks(para):
             if b is None:
@@ -2147,11 +2192,149 @@ def find_examples(indoc):
     return out, rnodes
 
 
-def extract_params(fieldinfo):
+# assume minimum-length to avoid removing valid text
+#    0x7ff6d11ee660
+HEX_PAT = re.compile('0x[0-9a-f]{8,16}')
+
+def remove_address(arg: str) -> str:
+    """Replace 0xHEX by 0x..."""
+
+    return re.sub(HEX_PAT, '0x...', arg)
+
+
+def annotate_type(ann) -> str:
+    """There must be an easier way to do this"""
+
+    if ann is None:
+        return 'None'
+
+    def check(val):
+        return issubclass(type(ann), val)
+
+    def clean(arg):
+        """Remove all occurrences of 'typing.'"""
+        out = str(arg)
+        return out.replace('typing.', '')
+
+    # Ugh - these checks are both annoying and awkward and I don't
+    # have the time to step back and go "this is the wrong way to do
+    # this".
+    #
+    if ann == type(None):
+        return 'None'
+
+    if ann == typing.Any:
+        return 'Any'
+
+    # Check we catch this correctly
+    if ann == typing.Callable:
+        return clean(ann)
+
+    if type(ann) == typing._UnionGenericAlias:
+        # Try to replace Union[a, b, ...] with a | b | ...
+        # but this relies on me understanding the setup here,
+        # which I don't!
+        #
+        args = [annotate_type(arg) for arg in ann.__args__]
+        return " | ".join(args)
+
+    if type(ann) in [types.UnionType, types.GenericAlias,
+                     typing._GenericAlias,
+                     typing._CallableGenericAlias]:
+        return clean(ann)
+
+    if issubclass(ann, (bool, int, float, str)):
+        return ann.__name__
+
+    if issubclass(ann, (Data, FitResults, Model, MultiPlot, OptMethod,
+                        Stat)):
+        return ann.__name__
+
+    raise ValueError(f"Unknown annotation {type(ann)} '{ann}'")
+    # return 'UNKNOWN'
+
+
+def split_sig(name: str, sig: Signature) -> list[str]:
+    """Do we split up a signature?"""
+
+    # Assume we have
+    #    symbol(par1[: ...][ = ...], ...)[ -> ...]
+    #
+    # We want to break in          ^
+    # but there can be commas in the type or default value
+    #
+    out = []
+
+    spacer = "   "
+    current = f"{spacer}{name}("
+    namelen = len(name) + len(spacer)
+    indent = " " * (namelen + 1)
+    first = True
+    for pname, par in sig.parameters.items():
+        if first:
+            first = False
+        else:
+            out.append(current + ",")
+            current = indent
+
+        current += pname
+        if par.annotation != inspect._empty:
+            # print(f"{pname} --> {par.annotation}  {type(par.annotation)}")  # DBG
+            current += ": " + annotate_type(par.annotation)
+
+        if par.default != inspect._empty:
+            current += f" = {remove_address(repr(par.default))}"
+
+    # If there's no return annotation we can just end the current
+    # item with ")" and leave.
+    #
+    if sig.return_annotation == inspect._empty:
+        current += ")"
+        out.append(current)
+        return out
+
+    # print(f"return --> {sig.return_annotation}  {type(sig.return_annotation)}")  # DBG
+    retval = ") -> " + annotate_type(sig.return_annotation)
+
+    if first:
+        # No arguments, so include the output annotation
+        #
+        current += retval
+        out.append(current)
+        return out
+
+    # Multiple arguments so place the return annotation on a new line
+    # (and indent one less than indent so that matches opening bracket).
+    #
+    out.append(current)
+    current = ' ' * namelen + retval
+    out.append(current)
+    return out
+
+
+def add_syntax_as_para(adesc, name: str, sig: Signature):
+    "Add information about the sig to the parameters block."
+
+    p = ElementTree.SubElement(adesc, 'PARA')
+    p.text = 'The types of the arguments are:'
+
+    # Use a VERBATIM block to make the spacing work out.
+    #
+    out = ElementTree.SubElement(adesc, 'VERBATIM')
+    out.text = "\n".join(split_sig(name, sig))
+
+
+def extract_params(fieldinfo,
+                   name: str,
+                   sig: Signature | None = None):
     """Extract the parameter information from a fieldlist.
 
     We used to use paragraphs, but now use a table for the
     parameter/attribute values.
+
+    The sig argument is currently unused as for CIAO 4.17 it
+    was felt to add no extra inforamtion to the fieldinfo
+    data. This can be reviewed for 4.18.
 
     """
 
@@ -2172,10 +2355,10 @@ def extract_params(fieldinfo):
         return None
 
     if is_attrs:
-        name = 'object'
+        funcname = 'object'
         value = 'attribute'
     else:
-        name = 'function'
+        funcname = 'function'
         value = 'parameter'
 
     # For now only handle the simple case for the return values
@@ -2205,21 +2388,40 @@ def extract_params(fieldinfo):
     adesc = ElementTree.Element("ADESC",
                                 {'title': '{}S'.format(value.upper())})
 
+    # For CIAO 4.17 we do not add this information.
+    #
+    # if sig is not None:
+    #     add_syntax_as_para(adesc, name, sig)
+
     p = ElementTree.SubElement(adesc, 'PARA')
     if nparams == 0:
-        p.text = 'This {} has no {}s'.format(name, value)
+        p.text = 'This {} has no {}s'.format(funcname, value)
     elif nparams == 1:
-        p.text = 'The {} for this {} is:'.format(value, name)
+        p.text = 'The {} for this {} is:'.format(value, funcname)
     else:
-        p.text = 'The {}s for this {} are:'.format(value, name)
+        p.text = 'The {}s for this {} are:'.format(value, funcname)
 
     if nparams > 0:
         tbl = ElementTree.SubElement(adesc, 'TABLE')
+
+        # We could directly query the signature for information
+        # on the default values.
+        #
+
+        # Do we have any "type" information?
+        #
+        has_type = False
+        for par in parinfo:
+            if 'type' in par:
+                has_type = True
+                break
 
         # add a fake first row to set up the headers
         #
         row0 = ElementTree.SubElement(tbl, 'ROW')
         ElementTree.SubElement(row0, 'DATA').text = value.capitalize()
+        if has_type:
+            ElementTree.SubElement(row0, 'DATA').text = 'Type information'
         ElementTree.SubElement(row0, 'DATA').text = 'Definition'
 
         for par in parinfo:
@@ -2227,9 +2429,18 @@ def extract_params(fieldinfo):
             row = ElementTree.SubElement(tbl, 'ROW')
             ElementTree.SubElement(row, 'DATA').text = par['name']
 
-            # Keys are name, param, and type. At present type is not used.
+            # Keys are name, param, and type.
             #          name, ivar
             #
+            if has_type:
+                try:
+                    tinfo = par['type']
+                    conv = convert_field_body(tinfo)
+                    txt = conv.text
+                except KeyError:
+                    txt = ''
+
+                ElementTree.SubElement(row, 'DATA').text = txt
 
             if 'param' in par:
                 block = convert_field_body(par['param'])
@@ -2490,7 +2701,11 @@ def merge_metadata(xmlattrs, metadata=None):
     return xmlattrs
 
 
-def convert_docutils(name, doc, sig,
+def convert_docutils(name: str,
+                     doc,
+                     sig: str,
+                     # annotated_sig=None,
+                     actual_sig: Signature | None = None,
                      symbol=None, metadata=None, synonyms=None,
                      dtd='ahelp'):
     """Given the docutils documentation, convert to ahelp DTD.
@@ -2499,10 +2714,14 @@ def convert_docutils(name, doc, sig,
     ----------
     name : str
     doc
-        The document (resturctured text)
+        The document (restructured text)
     sig : str or None
         The signature of the name (will be over-ridden by the
         document, if given).
+    annotated_sig
+        The annotation signature, if present.
+    actual_sig : Signature
+        The annotated signature object.
     symbol
         The symbol to document (e.g. sherpa.astro.ui.load_table or
         sherpa.astro.ui.xsapec) or None.
@@ -2546,7 +2765,7 @@ def convert_docutils(name, doc, sig,
     nodes = list(doc)
     syntax, nodes = find_syntax(name, sig, nodes)
     synopsis, refkeywords, nodes = find_synopsis(nodes)
-    desc, nodes = find_desc(nodes)
+    desc, nodes = find_desc(nodes, synonyms=synonyms)
 
     # For XSPEC models, add a note about
     # additive/multiplicative/convolution to the SYNTAX block (could
@@ -2556,20 +2775,7 @@ def convert_docutils(name, doc, sig,
        issubclass(symbol.modeltype, (XSAdditiveModel, XSMultiplicativeModel, XSConvolutionKernel)):
         assert syntax is not None
 
-        ElementTree.SubElement(syntax, 'LINE').text = ''
-
-        mline = 'The {} model is '.format(name)
-        if issubclass(symbol.modeltype, XSAdditiveModel):
-            mline += 'an additive'
-        elif issubclass(symbol.modeltype, XSMultiplicativeModel):
-            mline += 'a multiplicative'
-        elif issubclass(symbol.modeltype, XSConvolutionKernel):
-            mline += 'a convolution'
-        else:
-            raise RuntimeError("Unexpected XSPEC model component: {}".format(name))
-
-        mline += ' model component.'
-        ElementTree.SubElement(syntax, 'LINE').text = mline
+        add_xspec_model_to_syntax(syntax, name, symbol)
 
     # Can have parameters and then a "raises" section, or just one,
     # or neither. Really they should both be before the See Also
@@ -2600,9 +2806,13 @@ def convert_docutils(name, doc, sig,
     # This has been separated fro the extraction of the field list
     # to support experimentation.
     #
-    params = extract_params(fieldlist1)
-    add_synonyms_to_syntax(syntax, synonyms)
-    add_pars_to_syntax(syntax, fieldlist1)
+    params = extract_params(fieldlist1, name, actual_sig)
+
+    # Do we want to include the parameter overview in the syntax
+    # block? We used to, but let's try to just have those in the
+    # params block.
+    #
+    # add_pars_to_syntax(syntax, fieldlist1)
 
     # support see-also here
     #

@@ -7,6 +7,7 @@ Usage:
      --debug
      --sxml
      --models
+     --annotations keep | delete
 
 Aim:
 
@@ -53,43 +54,18 @@ TODO:
 from collections import defaultdict
 import os
 
-from sherpa.ui.utils import ModelWrapper
 from sherpa.astro import ui
 
-from parsers.sherpa import sym_to_rst, sym_to_sig, unwanted, find_synonyms
-from parsers.rst import parse_restructured
-from parsers.docutils import convert_docutils
 from parsers.ahelp import find_metadata
+from parsers.sherpa import unwanted, find_synonyms
 
-from helpers import save_doc, list_xspec_models, list_sherpa_models
-
-
-def process_symbol(name, sym, dtd='ahelp',
-                   ahelp=None, synonyms=None, debug=False):
-
-    sherpa_doc = sym_to_rst(name, sym)
-    if sherpa_doc is None:
-        print("  - has no doc")
-        return None
-
-    sig, _ = sym_to_sig(name, sym)
-
-    if debug:
-        print("---- formats")
-        print("-- Sherpa:\n{}".format(sherpa_doc))
-
-    rst_doc = parse_restructured(name, sherpa_doc)
-    if debug:
-        print("-- RestructuredText:\n{}".format(rst_doc))
-
-    doc = convert_docutils(name, rst_doc, sig, dtd=dtd,
-                           symbol=sym, metadata=ahelp,
-                           synonyms=synonyms)
-    return doc
+from helpers import save_doc, list_xspec_models, \
+    list_sherpa_models, process_symbol
 
 
 def convert(outdir, dtd='ahelp', modelsonly=False,
             skip_synonyms=False,
+            handle_annotations="keep",
             debug=False, restrict=None):
     """Convert the symbols.
 
@@ -104,6 +80,8 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         in the restrict parameter if both are specified).
     skip_synonyms : bool, optional
         Should synonyms be skipped or not?
+    handle_annotations : str, optional
+        Options are "keep", "delete"
     debug : optional, boool
         If True then print out parsed versions of the symbols
         (expected to be used when restrict is not None but this
@@ -245,6 +223,7 @@ def convert(outdir, dtd='ahelp', modelsonly=False,
         try:
             xml = process_symbol(name, sym, dtd=dtd, ahelp=ahelp,
                                  synonyms=syn_names,
+                                 annotations=handle_annotations,
                                  debug=debug)
         except Exception as exc:
             print(" - ERROR PROCESSING: {}".format(exc))
@@ -377,6 +356,11 @@ if __name__ == "__main__":
     parser.add_argument("--models", action="store_true",
                         help="Restrict to Sherpa models only")
 
+    parser.add_argument("--annotations", "-a",
+                        default="keep",
+                        choices=["keep", "delete"],
+                        help="What to do with annotations?")
+
     args = parser.parse_args(sys.argv[1:])
     restrict = args.names
     if restrict is not None:
@@ -384,6 +368,8 @@ if __name__ == "__main__":
 
     dtd = 'sxml' if args.sxml else 'ahelp'
 
+    print(f"Annotation handling: {args.annotations}")
     convert(args.outdir, dtd=dtd, modelsonly=args.models,
+            handle_annotations=args.annotations,
             debug=args.debug,
             restrict=restrict)
