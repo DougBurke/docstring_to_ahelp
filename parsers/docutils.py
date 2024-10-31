@@ -1317,24 +1317,6 @@ def add_pars_to_syntax(syntax, fieldlist):
     return syntax
 
 
-def add_synonyms_to_syntax(syntax, synonyms):
-    """Do we note any synonyms?
-
-    """
-
-    if syntax is None or synonyms is None:
-        return syntax
-
-    # Could handle multiple, but only expect 1 so note if this
-    # changes.
-    assert len(synonyms) == 1, synonyms
-
-    ElementTree.SubElement(syntax, 'LINE').text = ''
-    ElementTree.SubElement(syntax, 'LINE').text = 'Alias: ' + synonyms[0]
-
-    return syntax
-
-
 def add_xspec_model_to_syntax(syntax, name, symbol):
     """Add the info about XSPEC models."""
 
@@ -1453,13 +1435,15 @@ def find_synopsis(indoc):
     return out, keywords, indoc[1:]
 
 
-def find_desc(indoc):
+def find_desc(indoc, synonyms=None):
     """Return the basic description, if present, and the remaining document.
 
     Parameters
     ----------
     indoc : list of nodes
         The document.
+    synonyms : list of str or None
+        Any synonyms.
 
     Returns
     -------
@@ -1483,10 +1467,22 @@ def find_desc(indoc):
         return x.tagname not in ['rubric', 'field_list', 'container', 'seealso']
 
     pnodes, rnodes = splitWhile(want, indoc)
-    if len(pnodes) == 0:
+    if len(pnodes) == 0 and synonyms is None:
         return None, indoc
 
     out = ElementTree.Element('DESC')
+
+    # Add in any synonyms
+    if synonyms is not None:
+        # Technically can have multiple, but in reality we only have
+        # pairs.
+        assert len(synonyms) == 1, synonyms
+
+        p = ElementTree.Element('PARA')
+        p.text = f"The function is also called {synonyms[0]}()."
+
+        out.append(p)
+
     for para in pnodes:
         for b in make_para_blocks(para):
             if b is None:
@@ -2769,7 +2765,7 @@ def convert_docutils(name: str,
     nodes = list(doc)
     syntax, nodes = find_syntax(name, sig, nodes)
     synopsis, refkeywords, nodes = find_synopsis(nodes)
-    desc, nodes = find_desc(nodes)
+    desc, nodes = find_desc(nodes, synonyms=synonyms)
 
     # For XSPEC models, add a note about
     # additive/multiplicative/convolution to the SYNTAX block (could
@@ -2780,8 +2776,6 @@ def convert_docutils(name: str,
         assert syntax is not None
 
         add_xspec_model_to_syntax(syntax, name, symbol)
-
-    add_synonyms_to_syntax(syntax, synonyms)
 
     # Can have parameters and then a "raises" section, or just one,
     # or neither. Really they should both be before the See Also
