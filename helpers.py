@@ -527,11 +527,11 @@ xspowerlaw.pl
         capitalization.''',
                  title="Parameter name changes")
 
-        add_para(adesc, '''The show_xsabund(), get_xsabundances() and
+        add_para(adesc, '''The show_xsabund(), get_xsabundances(), and
         set_xsabundances() commands have been added in this release. They
         allow users to get, set, or see all the abundances in one go -
         rather than the existing get_xsabund() and set_xsabund() commands,
-        which support a pre-set table or access by an individual element.''',
+        which support access via a pre-set table or individual element name.''',
                  title="Abundance settings")
 
     # Not yet ready
