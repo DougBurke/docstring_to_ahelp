@@ -446,7 +446,9 @@ xspowerlaw.pl
         calculations). These include (please use the Python help
         command for more information on these functions):''')
 
-    add_para(adesc, 'The get_xsabund() and set_xsabund() routines.',
+    add_para(adesc, '''The get_xsabund(), set_xsabund(),
+        get_xsabundances(), set_xsabundances(), and show_xsabund()
+        routines.''',
              title='Abundance')
 
     add_para(adesc, 'The get_xsxsect() and set_xsxsect() routines.',
@@ -524,6 +526,13 @@ xspowerlaw.pl
         scripts, but screen or file output will use the new
         capitalization.''',
                  title="Parameter name changes")
+
+        add_para(adesc, '''The show_xsabund(), get_xsabundances() and
+        set_xsabundances() commands have been added in this release. They
+        allow users to get, set, or see all the abundances in one go -
+        rather than the existing get_xsabund() and set_xsabund() commands,
+        which support a pre-set table or access by an individual element.''',
+                 title="Abundance settings")
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a
