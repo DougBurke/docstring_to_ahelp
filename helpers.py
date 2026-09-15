@@ -1,6 +1,7 @@
 """Utility routines."""
 
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 import os
 from inspect import signature
 import sys
@@ -226,6 +227,12 @@ def list_xspec_models(outdir, dtd='ahelp'):
             continue
 
         mclass = sym.modeltype
+
+        # Skip those models we do not support
+        with suppress(AttributeError):
+            if not mclass.version_enabled:
+                continue
+
         if issubclass(mclass, XSAdditiveModel):
             add_models.append(name)
         elif issubclass(mclass, XSMultiplicativeModel):
@@ -309,7 +316,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     desc = ElementTree.SubElement(entry, 'DESC')
 
-    add_para(desc, f'''Sherpa in CIAO 4.18 includes the "additive", "multiplicative", and "convolution"
+    add_para(desc, f'''Sherpa in CIAO 4.19 includes the "additive", "multiplicative", and "convolution"
     models of XSPEC version {xspec_version}, and are available by adding the prefix
     "xs" before the XSPEC model name (in lower case). As examples: in Sherpa the XSPEC
     phabs model is called "xsphabs", the vapec model is "xcvapec", and the cflux model
@@ -622,6 +629,7 @@ def list_sherpa_models(outdir, dtd='ahelp'):
                 'psfmodel',
                 'convolutionmodel',
                 'tablemodel',
+                'fixedtablemodel', 'interpolatedtablemodel1d',  # new in CIAO 4.19
                 'template', 'templatemodel',
                 'interpolatingtemplatemodel',
                 'usermodel',
