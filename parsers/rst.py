@@ -119,6 +119,15 @@ def obj_role(role, rawtext, text, lineno, inliner,
     return [node], []
 
 
+def pyobj_role(role, rawtext, text, lineno, inliner,
+               options={}, content=[]):
+    """Assume :py:obj:`foo bar`."""
+
+    # No error checking for now
+    node = nodes.literal(rawtext, text)
+    return [node], []
+
+
 def exc_role(role, rawtext, text, lineno, inliner,
              options={}, content=[]):
     """Assume :exc:`foo bar`."""
@@ -138,6 +147,8 @@ rst.directives.register_directive('versionchanged', VersionChanged)
 #
 rst.roles.register_local_role('obj', obj_role)
 rst.roles.register_local_role('exc', exc_role)
+
+rst.roles.register_local_role('py:obj', pyobj_role)
 
 
 def parse_restructured(name, sdoc):
