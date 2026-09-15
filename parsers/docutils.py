@@ -2094,15 +2094,36 @@ def find_references(indoc):
             assert footnote[1].tagname == "paragraph", str(footnote[1])
 
             # strip out the paragraph text from the reference URI
-            # Assume @refuri is the same as the text contents of reference
+            # We can no longer assume that @refuri is the same as the
+            # text contents of reference (CIAO 4.19 change).
             #
             if len(footnote[1]) == 2:
-                # Assume we have text and a reference URI
-                assert footnote[1][1].astext().startswith("http"), footnote[1][1]
 
-                add_href_para(out,
-                              f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
-                              footnote[1][1].astext())
+                # Is this now how it is done?
+                #
+                # <footnote ids="footnote-1" names="1">
+                #   <label>1</label>
+                #   <paragraph>
+                #     <reference name="K. A. Arnaud, I. M. George & A. F. Tennant, "The OGIP Spectral File Format"" refuri="https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html">K. A. Arnaud, I. M. George & A. F. Tennant, "The OGIP Spectral File Format"</reference>
+                #     <target ids="['k-a-arnaud-i-m-george-a-f-tennant-the-ogip-spectral-file-format']" names="['k. a. arnaud, i. m. george & a. f. tennant, "the ogip spectral file format"']" refuri="https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html"/>
+                #   </paragraph>
+                # </footnote>
+                #
+                # The old approach - leave in in case we still use this
+                # anywhere.
+                #
+                if footnote[1][1].astext().startswith("http"):
+                    # Assume we have text and a reference URI
+                    add_href_para(out,
+                                  f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
+                                  footnote[1][1].astext())
+                else:
+                    # what can we check
+                    assert len(footnote[1]) == 2, footnote[1]
+                    assert footnote[1][0].get("refuri") == footnote[1][1].get("refuri"), footnote[1]
+                    add_href_para(out,
+                                  f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
+                                  footnote[1][0].get("refuri"))
 
             elif len(footnote[1]) == 1:
 
