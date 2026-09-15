@@ -9,14 +9,22 @@ I thought about loading the CIAO ahelp library, but decided
 just to query the ahelp file directly.
 """
 
+from pathlib import Path
 import os
 
 from xml.etree import ElementTree
 
 
+# Use ASCDS_INSTAlL by default and if not present then /soft/ciao
+# (this could be picked up from another environment variable but
+#  for now hard-code it).
+#
 home = os.getenv('ASCDS_INSTALL')
 if home is None:
-    raise ImportError("ASCDS_INSTALL environment variable must be set")
+    home = "/soft/ciao"
+    if not Path(home).is_dir():
+        raise ImportError("ASCDS_INSTALL environment variable "
+                          "must be set or /soft/ciao/ exist")
 
 
 def find_metadata(name, synonyms=None):
