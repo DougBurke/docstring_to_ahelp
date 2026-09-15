@@ -25,6 +25,9 @@ from sherpa.plot import MultiPlot
 from sherpa.stats import Stat
 from sherpa.ui.utils import ModelWrapper
 
+# For annotations
+import sherpa.image
+import sherpa.plot
 
 from parsers.ahelp import find_metadata
 from parsers.docutils import convert_docutils, merge_metadata
@@ -805,8 +808,14 @@ def process_symbol(name, sym, dtd='ahelp',
     # strings, and try to handle Optional/Union -> a | .... This is
     # not ideal.
     #
-    # Is this still needed?
+    # Is this still needed? There's two things
+    # - convert an "old" annotation to a new one
+    #   (hopefully not needed)
+    # - convert a string to an actual type, which can work but does
+    #   it always?
     #
+    # We could just eval the string ....
+
     if orig_ann is not None:
         for k, v in orig_ann.items():
             if v == 'None':
@@ -1042,14 +1051,33 @@ def process_symbol(name, sym, dtd='ahelp',
                 orig_ann[k] = str | Parameter | None
                 continue
 
+            if v == 'str | bytes | None':
+                orig_ann[k] = str | bytes | None
+                continue
+
             if v == 'ClipValue':
                 orig_ann[k] = ClipValue
                 continue
 
+            #if v == 'sherpa.image.DataImage':
+            #    orig_ann[k] = DataImage
+            #    continue
+
+            #if v == 'sherpa.plot.DataContour':
+            #    orig_ann[k] = DataContour
+            #    continue
+
+            #if v == 'sherpa.plot.FitContour':
+            #    orig_ann[k] = FitContour
+            #    continue
+
             if isinstance(v, str):
                 # let me know uf there's more annotations to fix
-                assert False, ("process_symbol:annotation",
-                               k, v, type(v))
+                #assert False, ("process_symbol:annotation",
+                #               k, v)
+                # Just warn now
+                sys.stderr.write(f"process_symbol[{name}]:annotation {k}={v}\n")
+                orig_ann[k] = eval(v)  # will this work?
 
         sym.__annotations__ = orig_ann
 
