@@ -485,6 +485,12 @@ def convert_para(para, complex=True):
 
         text.append(astext(n))
 
+    # Safety check: we could just skip this but note if for now as an
+    # error.
+    #
+    if "..math:" in text:
+        raise ValueError(f"PARA contains '..math:':\n{para}")
+
     if href is None:
         out.text = "\n".join(text)
     else:
@@ -546,6 +552,67 @@ def convert_literal_block(para):
     verbatim = ElementTree.Element('VERBATIM')
     verbatim.text = para.astext()
     return verbatim
+
+
+def convert_math_block(para):
+    """Create an EQUATION block.
+
+    Parameters
+    ----------
+    para : docutils.nodes.math_block
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    Notes
+    -----
+    Very limited. THe DTD allows for XMLONLY and PASSTHRU
+    tags, with the latter being used for the LaTeX output
+    back in the day. For now we only have one piece of text,
+    the LaTeX representation, and we could send it
+
+      <EQUATION>cts</EQUATION>
+      <EQUATION>
+         cts
+         <PASSTHRU>cts</PASSTHRU>
+      </EQUATION>
+      <EQUATION>
+         <XMLONLY>cts</XMLONLY>
+         <PASSTHRU>cts</PASSTHRU>
+      </EQUATION>
+
+    The last option is the most verbose but easiest to handle
+    downstream.
+
+    Actually, we do make small tweaks to the contents so the
+    PASSTHRU and XMLONLY blocks are slighty different:
+
+      ' &= ' is replaced with ' = ' for XMLONLY
+
+    """
+
+    assert para.tagname == 'math_block', para
+
+    # Catch if this is ever different, just in case
+    assert para.get('xml:space') == 'preserve', para
+
+    contents = para.astext()
+
+    # Hopefully we are always in a place where it makes sense
+    # to add a new PARA.
+    block = ElementTree.Element('PARA')
+
+    equation = ElementTree.SubElement(block, 'EQUATION')
+
+    xmlonly = ElementTree.SubElement(equation, 'XMLONLY')
+    passthru = ElementTree.SubElement(equation, 'PASSTHRU')
+
+    xmlonly.text = contents.replace(' &= ', ' = ')
+    passthru.text = contents
+
+    return block
 
 
 def convert_list_items(para):
@@ -1145,7 +1212,9 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'versionchanged': convert_versionwarning,
                    'comment': convert_comment_versionwarning,
                    'field_body': convert_field_body,
-                   'literal_block': convert_literal_block}
+                   'literal_block': convert_literal_block,
+                   'math_block': convert_math_block
+                   }
 
 # return a list
 para_mconverters = ['definition_list']
