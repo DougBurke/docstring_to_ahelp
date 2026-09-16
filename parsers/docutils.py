@@ -335,6 +335,14 @@ def astext(node):
         # This is new in CIAO 4.16. I guess this should just be:
         return f"[{node.astext()}]"
 
+    if node.tagname == "math":
+        # Assume this is an in-line element. The ahelp DTD
+        # doesn't make this easy to represent, so just convert
+        # to text (which is inherent to this particular routine
+        # any way).
+        #
+        return f"{node.astext()}"
+
     assert node.tagname in ['paragraph', 'list_item',
                             'enumerated_list'], node
 
@@ -554,6 +562,55 @@ def convert_literal_block(para):
     return verbatim
 
 
+def delatixify(cts: str) -> str:
+    """Strip out some latex-isms we don't want in XMLONLY
+
+    This is very-much an ad-hoc routine.
+
+    """
+
+    out = cts
+    eq = ' = '
+    for oval, nval in [(r'\,', ' '),
+                       (r'\ ', ' '),
+                       # assume there's no \quadXXX symbol
+                       (r'\quad', ' '),
+                       (' &= ', eq),
+                       (' =& ', eq),
+                       (' &=& ', eq),
+                       #
+                       #(' & if ', ' if '),
+                       #(' & otherwise', ' otherwise'),
+                       #
+                       (r'\mathrm{if}', 'if'),
+                       (r'\mathrm{with}',  'with'),
+                       (r'\mathrm{for}', 'for'),
+                       (r'\mathrm{otherwise}', 'otherwise'),
+                       # very special-case
+                       (r'nh_\mathrm{gal}', 'nhgal'),
+                       # These must be done after the earlier changes
+                       (' &  if ', ' if '),
+                       (' &  otherwise', ' otherwise'),
+                       ]:
+        out = out.replace(oval, nval)
+
+    # To lazy to worry about spacing in the table above,
+    # and assume this is only needed once. This is to
+    # catch "&  if" and the like. However, could it catch
+    # valid text?
+    #
+    # if s := re.search(' & *[a-zA-Z]', out):
+    #     out = out[:s.start()] + out[s.end() - 1:]
+
+    # Just to check to see what symbols are being used (these
+    # checks are to be removed).
+    #
+    assert out.find('mathrm') == -1, out  # hack for testing
+    assert re.search(' & *[a-zA-Z]', out) is None, out
+
+    return out
+
+
 def convert_math_block(para):
     """Create an EQUATION block.
 
@@ -587,9 +644,8 @@ def convert_math_block(para):
     downstream.
 
     Actually, we do make small tweaks to the contents so the
-    PASSTHRU and XMLONLY blocks are slighty different:
-
-      ' &= ' is replaced with ' = ' for XMLONLY
+    PASSTHRU and XMLONLY blocks are slighty different. See the
+    delatixify routine.
 
     """
 
@@ -609,7 +665,7 @@ def convert_math_block(para):
     xmlonly = ElementTree.SubElement(equation, 'XMLONLY')
     passthru = ElementTree.SubElement(equation, 'PASSTHRU')
 
-    xmlonly.text = contents.replace(' &= ', ' = ')
+    xmlonly.text = delatixify(contents)
     passthru.text = contents
 
     return block
