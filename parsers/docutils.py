@@ -32,9 +32,9 @@ from sherpa.stats import Stat
 from sherpa.ui.utils import ModelWrapper
 
 
-CIAOVER = "CIAO 4.18"
+CIAOVER = "CIAO 4.19"
 XSPECVER = "12.14.0k"
-LASTMOD = "December 2025"
+LASTMOD = "December 2026"
 
 
 objname = '<unset>'
