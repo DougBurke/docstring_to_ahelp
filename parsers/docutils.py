@@ -786,14 +786,79 @@ def convert_bullet_list(para):
 
     assert para.tagname == 'bullet_list', para
     # assert len(para) == 1, (len(para), para)
-    return convert_list_items(para)
+
+    # If this is a list of block_quotes then handle it differently
+    # (needed in CIAO 4.19 to handle load_table_model).
+    #
+    # Can we base it on the bullet_list::@bullet value?
+    #
+    # Argh. I'm no handling the load_table_model routine elsewhere
+    #
+    bullet = para.get("bullet")
+    if bullet == "-":
+        return convert_list_items(para)
+
+    # Special case the load_table_model case
+    raise ValueError(f"What to do with bullet={bullet}\n{para}")
+
+
+def special_case_bullet_list(blist):
+    """Convert to multiple paras in an ADESC"""
+
+    # At the moment this is only built to support load_table_model (CIAO 4.19)
+    assert blist[0].tagname == 'bullet_list' and blist[0].get('bullet') == "*"
+
+    out = []
+    for litem in blist[0]:
+        assert litem.tagname == 'list_item'
+        assert litem[0].tagname == 'paragraph'
+        assert litem[1].tagname == 'block_quote'
+        assert litem[1][0].tagname == 'definition_list'
+        title = litem[0].astext()
+        start = ElementTree.Element('PARA', {'title': title})
+        out.append(start)
+
+        # See convert_definition_list_as_para/table
+        tbl = ElementTree.Element('TABLE')
+
+        # add a fake first row to set up the headers
+        #
+        row0 = ElementTree.SubElement(tbl, 'ROW')
+        ElementTree.SubElement(row0, 'DATA').text = 'Keyword'
+        ElementTree.SubElement(row0, 'DATA').text = 'Type'
+        ElementTree.SubElement(row0, 'DATA').text = 'Definition'
+
+        for el in litem[1][0]:
+
+            assert el.tagname == 'definition_list_item', el
+            assert el[0].tagname == 'term', el
+            assert el[0][0].tagname in ['literal', '#text'], el
+            assert el[1].tagname == 'classifier', el
+            assert el[1][0].tagname in ['literal', '#text'], el
+            assert el[2].tagname == 'definition', el
+            assert el[2][0].tagname == 'paragraph', el
+            assert len(el[2]) == 1, el
+
+            row = ElementTree.SubElement(tbl, 'ROW')
+            ElementTree.SubElement(row, 'DATA').text = el[0].astext()
+            ElementTree.SubElement(row, 'DATA').text = el[1].astext()
+
+            # It would be nice if we could error out if el[2]
+            # contained any markup (well. markup we can't easily
+            # convert).
+            #
+            ElementTree.SubElement(row, 'DATA').text = astext(el[2][0])
+
+        out.append(tbl)
+
+    return out
 
 
 def convert_definition_list_as_paras(para):
     """Create a definition list.
 
     This returns a set of paragraphs, with titles being the
-    list headers, and the contents being the paragrph contents.
+    list headers, and the contents being the paragraph contents.
 
     Parameters
     ----------
@@ -2045,6 +2110,14 @@ def find_notes(name, indoc):
     #
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
+
+    # load_table_model in CIAO 4.19 has complicated this, so special case
+    #
+    if len(lnodes) == 1 and lnodes[0].tagname == 'bullet_list' and lnodes[0].get('bullet') == "*":
+        for para in special_case_bullet_list(lnodes):
+            out.append(para)
+
+        return out, rnodes
 
     # Do we want to process the contents or add them as a versionadded entry?
     #

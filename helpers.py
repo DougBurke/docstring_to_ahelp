@@ -39,7 +39,7 @@ from parsers.sherpa import sym_to_rst, sym_to_sig
 # syntax, with Python 3.10 versions. Is this still needed?
 #
 
-from sherpa.sim.sample import ClipValue
+# from sherpa.sim.sample import ClipValue   TODO: improve this definition
 from sherpa.ui.utils import ModelType
 from sherpa.utils.random import RandomType
 from sherpa.utils.types import ArrayType, IdType, IdTypes, PrefsType
