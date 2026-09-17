@@ -104,11 +104,12 @@ def add_model_list(caption, models, xspec=True,
     # CIAO 4.17 included XSPEC 12.14.0k
     # CIAO 4.18 included XSPEC 12.14.0k at present
     #    but it has new models compared to 4.17.
+    # CIAO 4.19 included XSPEC 12.14.0k at present
     #
     if xspec:
         has_new = True
 
-    # has_new = False  # change if XSPEC gets updated
+    has_new = False  # change if XSPEC gets updated
 
     if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
@@ -389,9 +390,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
     adesc.set('title', 'Parameter names')
     para = add_para(adesc, f'''Sherpa uses names, rather than numbers, to access parameter values (e.g.
         to set them, change whether a parameter is frozen, adjust the limits,
-        or access the latest value). Prior to XSPEC version 12.9.0, the parameter
-        names for the XSPEC models were not guaranteed to be valid Python
-        symbols, and so Sherpa has converted the problematic names.
+        or access the latest value).
         The names used by Sherpa are given in the ahelp page for the model
         - e.g.''')
 
@@ -575,7 +574,7 @@ xspowerlaw.pl
     para = add_para(bugs, 'For a list of known bugs and issues with the XSPEC models, please visit the')
 
     href = ElementTree.SubElement(para, 'HREF')
-    href.set('link', 'https://heasarc.gsfc.nasa.gov/docs/xanadu/xspec/bugs.html')
+    href.set('link', 'https://heasarc.gsfc.nasa.gov/docs/software/xspec/issues/issues.html')
     href.text = 'XSPEC bugs page.'
 
     add_para(bugs, '''To check the XSPEC version used by Sherpa, use the

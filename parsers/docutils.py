@@ -167,7 +167,8 @@ def is_para(node):
 
 XSMODEL_RE = re.compile('^XS[a-z0-9]+$')
 
-XSVERSION_WARNING = re.compile(r'^This model requires XSPEC 12\.\d\d\.\d or later.$')
+# Now need to worth about version 13...
+XSVERSION_WARNING = re.compile(r'^This model requires XSPEC 1[12]\.\d\d\.\d or later.$')
 
 
 # Just check that we understand the links between reference and target
@@ -303,6 +304,7 @@ def astext(node):
             assert False, "literal: " + out
 
         if out.startswith('sherpa.'):
+            # TODO: what did I mean here as the assert below trivially succeeds
             assert out
 
         if re.match(XSMODEL_RE, out):
@@ -1037,6 +1039,9 @@ def convert_note(note):
     #   refers to a change in XSPEC models 12.11.0 to 12.11.1
     #   and we have no CIAO version with 12.11.0
     #
+    # Hopefully we can remove this as the original text will be
+    # removed from Sherpa.
+    #
     if title == 'Parameter renames in XSPEC 12.11.1':
         return None
 
@@ -1150,7 +1155,6 @@ def convert_versionwarning(block):
     #  "This model requires XSPEC xxx or later."
     # paragraph.
     #
-    xspec_version = "This model requires XSPEC 12.14.0 or later."
     if len(toks) > 1:
         if not re.match(XSVERSION_WARNING, toks[1]):
             out.text = toks[1]
@@ -1987,63 +1991,38 @@ def find_notes(name, indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
-    # Unfortunately I have not used exactly the same text for different
-    # versions: 12.14.0 uses
-    #
-    # This model requires XSPEC 12.14.0 or later.
-    #
     # See also ../helpers.py which also includes this logic.
     #
     def version(v):
         return 'This model is only available when used with ' + \
             f'XSPEC {v} or later.'
 
-    v1291 = version('12.9.1')
-    v12100 = version('12.10.0')
-    v12101 = version('12.10.1')
-    v12110 = version('12.11.0')  # there's no 12.11.1 only models
-    v12120 = version('12.12.0')
-
-    # I want to warn about 12.12.1 models, but it turns out in
-    # CIAO 4.15 we don't support the three new models, as they
-    # require XFLT changes we currently do not support.
-    # I leave this in as a reminder.
+    # As of CIO 4.19 these are the only version requirements
+    # we have (there's no 13.0.0 models).
     #
-    v12121 = version('12.12.1')
-
-    # These are new to CIAO 4.16 - cglumin is the only one
-    v12130 = version('12.13.0')
-
-    # These are new to CIAO 4.17.
     v12140 = "This model requires XSPEC 12.14.0 or later."
-
-    # These are new in 4.18 but we don't provide this version
-    # of XSPEC and so we drop them.
-    #
+    v12141 = "This model requires XSPEC 12.14.1 or later."
     v12150 = "This model requires XSPEC 12.15.0 or later."
+    v12151 = "This model requires XSPEC 12.15.1 or later."
 
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        return txt not in [v1291, v12100, v12101, v12110, v12120,
-                           v12130, v12140]
+        return txt not in [v12140]
+
+    # Do we even see these models nowadays (i.e. shouldn't the
+    # unsuported models already be excluded; but this requires a
+    # Sherpa + XSPEC build).
+    #
+    def not_wanted(n):
+        txt = n.astext()
+        return txt in [v12141, v12150, v12151]
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
-
-    # What happens if this is a 12.12.1 only model? It is not
-    # supported in CIAO 4.15 so we have to remove it. However
-    # we do not expect this. These models are also not supported
-    # in 4.16 (so when we do add support it's going to get
-    # complicated)
-    #
-    def not_wanted(n):
-        txt = n.astext()
-        # return txt == v12121
-        return txt in [v12121, v12150]
 
     unodes = list(filter(not_wanted, lnodes))
     if len(unodes) > 0:
@@ -2062,6 +2041,7 @@ def find_notes(name, indoc):
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
     # CIAO 4.17 uses 12.14.0k, which has new models
     # CIAO 4.18 uses 12.14.0k, and has new models compared to 4.17
+    # CIAO 4.19 uses ?
     #
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
@@ -2069,6 +2049,7 @@ def find_notes(name, indoc):
     # Do we want to process the contents or add them as a versionadded entry?
     #
     for para in lnodes:
+        # This is left in for when we have to identify a new model
         if v12140 in para.astext():
 
             print(para.astext())
@@ -2115,7 +2096,7 @@ def find_warning(indoc):
 
     assert len(node.children) == 1
 
-    # This probably needs to handle more-complocated structures,
+    # This probably needs to handle more-complicated structures,
     # but stay simple for now.
     #
     out = ElementTree.Element("ADESC", {'title': 'Warning'})
@@ -2718,6 +2699,7 @@ def strip_pat(pattern: str, inval: str) -> str:
     do not need to worry.
     """
 
+    # This could probably just use the string replace routine
     idx = inval.find(pattern)
     if idx == -1:
         return inval
@@ -2880,6 +2862,17 @@ def extract_params(fieldinfo,
             elif 'ivar' in par:
                 block = convert_field_body(par['ivar'])
                 text = block.text
+
+                # Special case some XSPEC parameters which include the
+                # text " (only usable with XSPEC 12.14.0 or later)"
+                # that we want to remove. Only do this if we think it
+                # might be relevant, to avoid possibly ruinig other
+                # cases.
+                #
+                if par['name'] == 'switch':
+                    text = " ".join(text.split("\n"))
+                    needle = " (only usable with XSPEC 12.14.0 or later)"
+                    text = text.replace(needle, "")
 
             else:
                 # Not description, so an empty paragraph.
