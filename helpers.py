@@ -5,7 +5,7 @@ from contextlib import suppress
 import os
 from inspect import signature
 import sys
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -1055,7 +1055,9 @@ def process_symbol(name, sym, dtd='ahelp',
                 continue
 
             if v == 'ClipValue':
-                orig_ann[k] = ClipValue
+                #orig_ann[k] = ClipValue
+                # The definition of ClipValue in 4.19 is not ideal
+                orig_ann[k] = Literal['none', 'soft', 'hard']
                 continue
 
             #if v == 'sherpa.image.DataImage':
