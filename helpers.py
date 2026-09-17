@@ -178,7 +178,7 @@ def add_model_list(caption, models, xspec=True,
             new = False
 
             # As we are not showing the new column we don't do this
-            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
+            ### ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''   what to do here?
 
             if new and new_elements is not None:
                 new_elements.append(name)
