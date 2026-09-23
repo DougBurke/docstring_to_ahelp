@@ -1,8 +1,9 @@
 # Create ahelp files from Sherpa
 
-You need a CIAO installation (tested with conda) in which you have installed
+You need a CIAOX installation (tested with conda) in which you have also
+installed:
 
-  sphinx<8
+  sphinx
 
 We then start the process with the following - the exact warning messages
 depends on what version of the code and what version of CIAO is being
@@ -197,6 +198,130 @@ Processing 713 XML files.
   53  name=plot_chart_spectrum  key=plot_chart_spectrum
   54  name=get_delchi_prof  key=get_delchi_prof
 ```
+
+## What changes are generally needed
+
+Note that the existing code is written to just support what the
+existing documentation needs, and is not a generic system. This has
+some downsides, but it was a lot easier to get running.
+
+There can be changes due to how the re-structured data is stored,
+thanks to changes in sphinx and its libraries. The module
+[`parsers/rst.py`](https://github.com/cxcsds/docstring_to_ahelp/blob/main/parsers/rst.py)
+is the first place to start with this.
+
+The next step is the
+[`parsers/docutils.py`](https://github.com/cxcsds/docstring_to_ahelp/blob/main/parsers/docutils.py)
+module, which deals with a lot of the conversion. Many of the routines
+include checks to catch if the data model changes (e.g. if something
+has changed, such as switching how references are handled, or a more
+implicit change has occured due to some internal change to the sphinx
+system).
+
+The top-level
+[`helpers.py`](https://github.com/cxcsds/docstring_to_ahelp/blob/main/helpers.py)
+module contains much of the code needed to pull the pieces together,
+as well as the code that auto-generates some of the files (in
+particular `models.xml` and `xs.xml`).
+
+### CIAO version
+
+Each ahelp file gets a "last modified : december <release date>"
+element, which is set by the `LASTMOD` setting in `helpers.py`.
+
+### Examples
+
+The conversion from an `Examples` block in a docstring to a
+`QEXAMPLELIST` ahelp block requires some care. The docstring has no
+obvious way to mark separate examples, so we generally take a single
+example to form
+
+    The text explaining the call(s), and is optional.
+
+    >>> One or more lines with possible output
+
+However, there is some attempt to support "longer" examples by
+checking if text following the actual call (the ">>> ..." section)
+starts with a lower-case letter. This is rather fragile.
+
+### versinadded/updated sections
+
+These sections are most likely to need some changes, such as replacing
+the Sherpa release v alues (e.g. "4.17.1") with the appropriate CIAO
+label. It normally bumps up (e.g. "CIAO 4.18") but this is not always
+the case (although this is mainly an issue for XSPEC files).
+
+### XSPEC version change
+
+The XSPEC version used in CIAO is stored in both
+
+    parsers/docutils.py - XSPECVER constant
+    helpers.py - xspec_major_version in list_xspec_models
+
+There is also a lot of complexity in the handling of
+versionadded/changed blocks because just because Sherpa supports a
+model it does not mean that CIAO does (if it comes from an XSPEC
+library too new for CIAO). The existing code is rather messy as it
+contains code that was useful for older CIAO releases).
+
+The Sherpa docstring may contain text indicating that something is
+only available or supported if a certain XSPEC release (or newer,
+normally) is in use. For CIAO this is a binary option (it is either
+valid or not) so the text may have to be massaged, and this is not
+something we can do generically but requires some targeted changes to
+the text.
+
+### Annotations
+
+A function may contain annotation support. If so the aim is to
+reflect this in the SYNTAX block, in a form similar to the function
+definition - for example
+
+    func(parname1: partype1, parname2 ,parname3: partype3, ...)
+
+    Returns: returntype
+
+(the layout is limited by the ahelp SYNTAX DTD) and we also generate
+an ADESC block listing the types of the input parameters and output
+return type.
+
+This was done to have the SYNTAX block be informative but not too
+long. It's an open question of how we want to do this (as more
+annotations get added).
+
+The existing code to support annotations is a bit unclear as some of
+the changes were made to support forms we no-longer use, or forms that
+we ideally would be using but haven't changed yet (e.g. replace
+"Optional[x]" by "x | None"), or to try and handle the fact that
+sometimes the annotated type can get displayed as a string -
+e.g. includes a starting and ending apostrophe - and sometimes doesn't
+(this is most often seen when comparing the output of doc2ahelp.py to
+the combination of extract_docstrings.py and view_docstring.py).
+
+### See Also
+
+The see-also section is defined by the "see also" docstring, where the
+tokens in that list are added to the existing term to form something
+like "token1-token2" (using lexicographical ordering to select which
+token to use first). This means that the two ahelp files (as long as
+they refer to each other) will have a see-also link. We also grab the
+existing settings (to catch existing knowledge, from the pre-docstring
+days of the ahelp files).
+
+### Refkeywords
+
+The existing ahelp files are used to copy over the refkeywords, since
+there isn't a way to add this as mark up to the docstrings. It means
+that new ahelp files will not be well set up. So I may have added the
+exisitng summary block, but I forget the exact details.
+
+### Error checking
+
+I generally use assert statements as I can not be bothered to come up
+with an actual error type for a particular statement, and I take
+advantage of supplying a second argument to get displayed if there is
+an error to help identify the problem.
+
 
 ## Debugging
 
