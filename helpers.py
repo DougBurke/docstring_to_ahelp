@@ -104,12 +104,10 @@ def add_model_list(caption, models, xspec=True,
     # CIAO 4.17 included XSPEC 12.14.0k
     # CIAO 4.18 included XSPEC 12.14.0k at present
     #    but it has new models compared to 4.17.
-    # CIAO 4.19 included XSPEC 12.14.0k at present
+    # CIAO 4.19 included XSPEC 12.15.1 at present
     #
     if xspec:
         has_new = True
-
-    has_new = False  # change if XSPEC gets updated
 
     if has_new:
         ElementTree.SubElement(row0, 'DATA').text = 'New'
@@ -151,11 +149,7 @@ def add_model_list(caption, models, xspec=True,
         # it looks like this is now handled in
         # docutils.convert_versionwarning.
         #
-        # It is also awkward for 4.18 since, at present, we have the same
-        # XSPEC version as 4.17 but we do have new models, so you can't
-        # just check for "XSPEC 12.14.0" as some of them were added in
-        # CIAO 4.17 and some in 4.18. Aha - these new models require
-        # XSPEC 12.15.0, and so we do not want to process them here.
+        # TODO: update for CIAO 4.19 as we now have XSPEC 12.15.1.
         #
         if xspec:
 
@@ -174,11 +168,13 @@ def add_model_list(caption, models, xspec=True,
             #      4.16 is 12.13.1e
             #      4.17    12.14.0k
             #      4.18    12.14.0k
-            # new = is_new(12, 14, 0)
-            new = False
+            #      4.19    12.15.1
+            #
+            # I think only the 12.14.1 check is needed but not sure
+            new = is_new(12, 14, 1) or is_new(12, 15, 0) or is_new(12, 15, 1)
+            # new = False
 
-            # As we are not showing the new column we don't do this
-            ### ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''   what to do here?
+            ElementTree.SubElement(row, 'DATA').text = 'NEW' if new else ''
 
             if new and new_elements is not None:
                 new_elements.append(name)
@@ -256,24 +252,29 @@ def list_xspec_models(outdir, dtd='ahelp'):
     check('multiplicative', mul_models)
     check('convolution', con_models)
 
-    # CIAO 4.18
-    # new_add_models = []
-    should_be_empty = []
+    new_add_models = []
+    new_mul_models = []
+    new_con_models = []
 
     atbl = add_model_list('Additive XSPEC models', add_models,
-                          new_elements=should_be_empty)
+                          new_elements=new_add_models)
     mtbl = add_model_list('Multiplicative XSPEC models', mul_models,
-                          new_elements=should_be_empty)
+                          new_elements=new_mul_models)
     ctbl = add_model_list('Convolution XSPEC models', con_models,
-                          new_elements=should_be_empty)
+                          new_elements=new_con_models)
 
-    if should_be_empty != []:
-        print(should_be_empty)
-        assert False, "expected no new add/mul/con models in 4.18"
+    # Tweak for the release
+    if new_add_models == []:
+        assert False, "expected add models in 4.19"
+        # assert False, f"expected no new add models in 4.19 {new_add_models}"
 
-    #if new_add_models != []:
-    #    print(new_add_models)
-    #    assert False, "expected no new add models in 4.18"
+    if new_mul_models == []:
+        assert False, f"expected mul models in 4.19"
+        # assert False, f"expected no new mul models in 4.19 {new_mul_models}"
+
+    if new_con_models == []:
+        assert False, f"expected new con models in 4.19"
+        # assert False, f"expected no new con models in 4.19: {new_con_models}"
 
     rootname = None
     if dtd == 'ahelp':
@@ -307,7 +308,7 @@ def list_xspec_models(outdir, dtd='ahelp'):
         return out
 
     # do we want the patch version here? Ideally.
-    xspec_major_version = '12.14.0k'
+    xspec_major_version = '12.15.1'
     xspec_version = f'{xspec_major_version}'
 
     root = ElementTree.Element(rootname)
@@ -377,8 +378,8 @@ def list_xspec_models(outdir, dtd='ahelp'):
 
     # Add if we get new modes for this release.
     #
-    #tail_text += ''' If the first column is labelled NEW then
-    #   the model is new to CIAO 4.17.'''
+    tail_text += ''' If the first column is labelled NEW then
+       the model is new to CIAO 4.19.'''
 
     href.tail = tail_text
 
@@ -511,55 +512,41 @@ xspowerlaw.pl
     ElementTree.SubElement(syntax, 'LINE').text = f"'{xspec_version}'"
 
     # If we have changes to talk about
-    if False:
-        # TO BE UPDATED
+    if True:
         adesc = ElementTree.SubElement(entry, 'ADESC')
-        adesc.set('title', 'Changes in CIAO 4.17')
+        adesc.set('title', 'Changes in CIAO 4.19')
+
+        nadd = len(new_add_models)
+        nmul = len(new_mul_models)
+        ncon = len(new_con_models)
+        assert nadd > 1, nadd
+        assert nmul > 1, nmul
+        assert ncon == 1, ncon
 
         add_para(adesc, f'''The XSPEC models have been updated to release {xspec_version}
-        in CIAO 4.17, from version 12.13.1e in CIAO 4.16. There are 50 new additive models, although a number of them are
-        essentially just renamed versions of existing models (see the XSPEC model documentation for
-        more details):''',
+        in CIAO 4.19, from version 12.14.0k in CIAO 4.18. There are {nadd} new additive models,
+        {nmul} new multiplicative models, and one new convolution model:''',
                  title='XSPEC model updates')
 
         outlist = ElementTree.SubElement(adesc, 'LIST')
 
         out = ElementTree.SubElement(outlist, 'ITEM')
-        out.text = ", ".join(new_add_models) + "."
+        new_add_models[-1] = f"and {new_add_models[-1]}"
+        out.text = "Additive: " + ", ".join(new_add_models) + "."
 
-        #out = ElementTree.SubElement(outlist, 'ITEM')
-        #out.text = "Multiplicative: " + ", ".join(["xsismdust", "xslog10con", "xslogconst", "xsolivineabs", "xszxipab"]) + "."
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        new_mul_models[-1] = f"and {new_mul_models[-1]}"
+        out.text = "Multiplicative: " + ", ".join(new_mul_models) + "."
 
-        #out = ElementTree.SubElement(outlist, 'ITEM')
-        #out.text = "Convolution: " + ", ".join(["xscglumin"]) + "."
+        out = ElementTree.SubElement(outlist, 'ITEM')
+        out.text = "Convolution: " + ", ".join(new_con_models) + "."
 
-        add_para(adesc, '''The default parameter values of a number of
-        models have been adjusted to match changes made in XSPEC 12.14.0.
-        Of particular note are models which now use a default redshift
-        if 0.1 rather than 0, and models with a switch parameter which now
-        default to 2 rather than 1 (indicating the use of APEC for
-        interpolation rather than mekal). The switch parameter may also
-        now have an upper limit of 3, indicating the use of SPEX data
-        for the interpolation, rather than 2. Several models have seen
-        some parameters marked as frozen or thawed to match XSPEC 12.14.0.
-        Please
-        see the individual model ahelp pages for more information.''',
-                 title="Changes to default parameter values")
-
-        add_para(adesc, '''A number of models now use the XSPEC capitalization
-        for the redshift parameter (that is, 'redshift' or 'Redshift',
-        depending on the model). Since Sherpa's parameter interface
-        is case insensitive this does not change the behaviour of Sherpa
-        scripts, but screen or file output will use the new
-        capitalization.''',
-                 title="Parameter name changes")
-
-        add_para(adesc, '''The show_xsabund(), get_xsabundances(), and
-        set_xsabundances() commands have been added in this release. They
-        allow users to get, set, or see all the abundances in one go -
-        rather than the existing get_xsabund() and set_xsabund() commands,
-        which support access via a pre-set table or individual element name.''',
-                 title="Abundance settings")
+        add_para(adesc, '''XSPEC 12.15.1 added support for setting the
+        ATOMDB, NEI, and SPEX versions to 'latest' in a user's ~/.xspec/Xspec.init
+        file, and these settings are now recognized by Sherpa. These
+        settings are now also automatically included in the dictionary
+        returned by get_xsxset().''',
+                 title="Changes to settings")
 
     # Not yet ready
     # add_para(adesc, '''XSPEC models can now be regridded, that is, evaluated with a

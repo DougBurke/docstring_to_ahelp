@@ -33,11 +33,33 @@ from sherpa.ui.utils import ModelWrapper
 
 
 CIAOVER = "CIAO 4.19"
-XSPECVER = "12.14.0k"
+XSPECVER = "12.15.1"
 LASTMOD = "December 2026"
 
 
 objname = '<unset>'
+
+
+# We should have a better way of sending context information around.
+# For now use global variables...
+#
+_context = {
+    "name": None
+}
+
+
+def set_ahelp_name(name: str) -> None:
+    assert _context["name"] is None, _context["name"]
+    _context["name"] = name
+
+
+def get_ahelp_name() -> str:
+    assert _context["name"] is not None
+    return _context["name"]
+
+
+def reset_ahelp_name():
+    _context["name"] = None
 
 
 def set_parent(name):
@@ -53,9 +75,12 @@ def dbg(msg, info='DBG'):
 def convert_version_number(v):
     """Convert from Sherpa to CIAO numbering
 
-    Not all Sherpa releases map to a CIAO release.
+    Not all Sherpa releases map to a CIAO release. And not all
+    Sherpa releases map to the "next" CIAO release (I'm looking
+    at you, 4.17.1 and your XSPEC models).
 
     CIAO releases:
+       4.19
        4.18
        4.17
        4.16
@@ -80,7 +105,10 @@ def convert_version_number(v):
         # Generic naming, drop the .0
         return f'{toks[0]}.{toks[1]}'
     elif v.startswith('4.17.'):
-        return '4.18'
+        if get_ahelp_name().startswith('xs'):
+            return '4.19'
+        else:
+            return '4.18'
     elif v.startswith('4.16.'):
         return '4.17'
     elif v.startswith('4.15.'):
@@ -1253,6 +1281,8 @@ def convert_comment_versionwarning(block):
 
     """
 
+    assert False, block   # is this still used?
+
     # safety check to ensure we don't have these blocks in other
     # parts of the document.
     #
@@ -1986,7 +2016,7 @@ def find_seealso(indoc):
     # I don't think there should be any see also symbol with a '.' in it
     # for any other reason than it is part of a module path.
     #
-    out = []
+    out = set()
     for n in names:
         if n.startswith('sherpa.'):
             n = n.split('.')[-1]
@@ -1994,14 +2024,13 @@ def find_seealso(indoc):
             sys.stderr.write(f"ERROR: invalid seealso {names}\n")
             sys.exit(1)
 
-        if n not in out:
-            out.append(n)
+        out.add(n)
 
     if len(names) != len(out):
         msg = f"- see also contains duplicates: {names}"
         dbg(msg)
 
-    return out, indoc[1:]
+    return sorted(out), indoc[1:]
 
 
 def find_notes(name, indoc):
@@ -2074,7 +2103,7 @@ def find_notes(name, indoc):
     #
     def wanted(n):
         txt = n.astext()
-        return txt not in [v12140]
+        return txt not in [v12140, v12141, v12150, v12151]
 
     # Do we even see these models nowadays (i.e. shouldn't the
     # unsuported models already be excluded; but this requires a
@@ -2082,7 +2111,8 @@ def find_notes(name, indoc):
     #
     def not_wanted(n):
         txt = n.astext()
-        return txt in [v12141, v12150, v12151]
+        # return txt in [v12141, v12150, v12151]
+        return False
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
@@ -2106,7 +2136,7 @@ def find_notes(name, indoc):
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
     # CIAO 4.17 uses 12.14.0k, which has new models
     # CIAO 4.18 uses 12.14.0k, and has new models compared to 4.17
-    # CIAO 4.19 uses ?
+    # CIAO 4.19 uses 12.15.1
     #
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
@@ -2123,7 +2153,10 @@ def find_notes(name, indoc):
     #
     for para in lnodes:
         # This is left in for when we have to identify a new model
-        if v12140 in para.astext():
+        txt = para.astext()
+        if v12140 in txt or v12141 in txt or v12150 in txt or v12151 in txt:
+
+            # This is not being hit: why?
 
             print(para.astext())
             raise NotImplementedError("this has got too complex")
@@ -3253,6 +3286,9 @@ def convert_docutils(name: str,
     # used to parse the versionadded/changed tags
     reset_stored_versions()
 
+    reset_ahelp_name()  # simpler to force this here
+    set_ahelp_name(name)
+
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
     # confused.
@@ -3383,6 +3419,15 @@ def convert_docutils(name: str,
         store_versions['versionchanged'] = []
 
     for p in store_versions['versionchanged']:
+
+        # Special case a change introduced in 4.19
+        #
+        if get_ahelp_name() == 'get_xsxset':
+            token = 'keywords when XSPEC 12.15.1 is used.'
+            if p.text.find(token) > 0:
+                p.text = p.text.replace('keywords when XSPEC 12.15.1 is used.',
+                                        'keywords.')
+
         versioninfo.append(p)
         added += 1
 
@@ -3511,4 +3556,5 @@ def convert_docutils(name: str,
 
     ElementTree.SubElement(entry, 'LASTMODIFIED').text = LASTMOD
 
+    reset_ahelp_name()
     return outdoc
