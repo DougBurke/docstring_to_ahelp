@@ -558,7 +558,7 @@ xspowerlaw.pl
 
     bugs = ElementTree.SubElement(entry, 'BUGS')
 
-    para = add_para(bugs, 'For a list of known bugs and issues with the XSPEC models, please visit the')
+    para = add_para(bugs, 'For a list of known bugs and issues with the XSPEC models, please visit the ')
 
     href = ElementTree.SubElement(para, 'HREF')
     href.set('link', 'https://heasarc.gsfc.nasa.gov/docs/software/xspec/issues/issues.html')
