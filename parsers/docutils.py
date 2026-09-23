@@ -32,12 +32,34 @@ from sherpa.stats import Stat
 from sherpa.ui.utils import ModelWrapper
 
 
-CIAOVER = "CIAO 4.18"
-XSPECVER = "12.14.0k"
-LASTMOD = "December 2025"
+CIAOVER = "CIAO 4.19"
+XSPECVER = "12.15.1"
+LASTMOD = "December 2026"
 
 
 objname = '<unset>'
+
+
+# We should have a better way of sending context information around.
+# For now use global variables...
+#
+_context = {
+    "name": None
+}
+
+
+def set_ahelp_name(name: str) -> None:
+    assert _context["name"] is None, _context["name"]
+    _context["name"] = name
+
+
+def get_ahelp_name() -> str:
+    assert _context["name"] is not None
+    return _context["name"]
+
+
+def reset_ahelp_name():
+    _context["name"] = None
 
 
 def set_parent(name):
@@ -53,9 +75,12 @@ def dbg(msg, info='DBG'):
 def convert_version_number(v):
     """Convert from Sherpa to CIAO numbering
 
-    Not all Sherpa releases map to a CIAO release.
+    Not all Sherpa releases map to a CIAO release. And not all
+    Sherpa releases map to the "next" CIAO release (I'm looking
+    at you, 4.17.1 and your XSPEC models).
 
     CIAO releases:
+       4.19
        4.18
        4.17
        4.16
@@ -80,7 +105,10 @@ def convert_version_number(v):
         # Generic naming, drop the .0
         return f'{toks[0]}.{toks[1]}'
     elif v.startswith('4.17.'):
-        return '4.18'
+        if get_ahelp_name().startswith('xs'):
+            return '4.19'
+        else:
+            return '4.18'
     elif v.startswith('4.16.'):
         return '4.17'
     elif v.startswith('4.15.'):
@@ -167,7 +195,8 @@ def is_para(node):
 
 XSMODEL_RE = re.compile('^XS[a-z0-9]+$')
 
-XSVERSION_WARNING = re.compile(r'^This model requires XSPEC 12\.\d\d\.\d or later.$')
+# Now need to worth about version 13...
+XSVERSION_WARNING = re.compile(r'^This model requires XSPEC 1[12]\.\d\d\.\d or later.$')
 
 
 # Just check that we understand the links between reference and target
@@ -303,6 +332,7 @@ def astext(node):
             assert False, "literal: " + out
 
         if out.startswith('sherpa.'):
+            # TODO: what did I mean here as the assert below trivially succeeds
             assert out
 
         if re.match(XSMODEL_RE, out):
@@ -334,6 +364,14 @@ def astext(node):
     if node.tagname == "citation_reference":
         # This is new in CIAO 4.16. I guess this should just be:
         return f"[{node.astext()}]"
+
+    if node.tagname == "math":
+        # Assume this is an in-line element. The ahelp DTD
+        # doesn't make this easy to represent, so just convert
+        # to text (which is inherent to this particular routine
+        # any way).
+        #
+        return f"{node.astext()}"
 
     assert node.tagname in ['paragraph', 'list_item',
                             'enumerated_list'], node
@@ -485,6 +523,12 @@ def convert_para(para, complex=True):
 
         text.append(astext(n))
 
+    # Safety check: we could just skip this but note if for now as an
+    # error.
+    #
+    if "..math:" in text:
+        raise ValueError(f"PARA contains '..math:':\n{para}")
+
     if href is None:
         out.text = "\n".join(text)
     else:
@@ -546,6 +590,115 @@ def convert_literal_block(para):
     verbatim = ElementTree.Element('VERBATIM')
     verbatim.text = para.astext()
     return verbatim
+
+
+def delatixify(cts: str) -> str:
+    """Strip out some latex-isms we don't want in XMLONLY
+
+    This is very-much an ad-hoc routine.
+
+    """
+
+    out = cts
+    eq = ' = '
+    for oval, nval in [(r'\,', ' '),
+                       (r'\ ', ' '),
+                       # assume there's no \quadXXX symbol
+                       (r'\quad', ' '),
+                       (' &= ', eq),
+                       (' =& ', eq),
+                       (' &=& ', eq),
+                       #
+                       #(' & if ', ' if '),
+                       #(' & otherwise', ' otherwise'),
+                       #
+                       (r'\mathrm{if}', 'if'),
+                       (r'\mathrm{with}',  'with'),
+                       (r'\mathrm{for}', 'for'),
+                       (r'\mathrm{otherwise}', 'otherwise'),
+                       # very special-case
+                       (r'nh_\mathrm{gal}', 'nhgal'),
+                       # These must be done after the earlier changes
+                       (' &  if ', ' if '),
+                       (' &  otherwise', ' otherwise'),
+                       ]:
+        out = out.replace(oval, nval)
+
+    # To lazy to worry about spacing in the table above,
+    # and assume this is only needed once. This is to
+    # catch "&  if" and the like. However, could it catch
+    # valid text?
+    #
+    # if s := re.search(' & *[a-zA-Z]', out):
+    #     out = out[:s.start()] + out[s.end() - 1:]
+
+    # Just to check to see what symbols are being used (these
+    # checks are to be removed).
+    #
+    assert out.find('mathrm') == -1, out  # hack for testing
+    assert re.search(' & *[a-zA-Z]', out) is None, out
+
+    return out
+
+
+def convert_math_block(para):
+    """Create an EQUATION block.
+
+    Parameters
+    ----------
+    para : docutils.nodes.math_block
+        The contents to add.
+
+    Returns
+    -------
+    out : ElementTree.Element
+
+    Notes
+    -----
+    Very limited. THe DTD allows for XMLONLY and PASSTHRU
+    tags, with the latter being used for the LaTeX output
+    back in the day. For now we only have one piece of text,
+    the LaTeX representation, and we could send it
+
+      <EQUATION>cts</EQUATION>
+      <EQUATION>
+         cts
+         <PASSTHRU>cts</PASSTHRU>
+      </EQUATION>
+      <EQUATION>
+         <XMLONLY>cts</XMLONLY>
+         <PASSTHRU>cts</PASSTHRU>
+      </EQUATION>
+
+    The last option is the most verbose but easiest to handle
+    downstream.
+
+    Actually, we do make small tweaks to the contents so the
+    PASSTHRU and XMLONLY blocks are slighty different. See the
+    delatixify routine.
+
+    """
+
+    assert para.tagname == 'math_block', para
+
+    # Catch if this is ever different, just in case
+    assert para.get('xml:space') == 'preserve', para
+
+    contents = para.astext()
+
+    # Hopefully we are always in a place where it makes sense
+    # to add a new PARA.
+    block = ElementTree.Element('PARA')
+
+    equation = ElementTree.SubElement(block, 'EQUATION')
+
+    xmlonly = ElementTree.SubElement(equation, 'XMLONLY')
+    passthru = ElementTree.SubElement(equation, 'PASSTHRU')
+
+    xmlonly.text = delatixify(contents)
+    passthru.text = contents
+
+    return block
 
 
 def convert_list_items(para):
@@ -661,14 +814,79 @@ def convert_bullet_list(para):
 
     assert para.tagname == 'bullet_list', para
     # assert len(para) == 1, (len(para), para)
-    return convert_list_items(para)
+
+    # If this is a list of block_quotes then handle it differently
+    # (needed in CIAO 4.19 to handle load_table_model).
+    #
+    # Can we base it on the bullet_list::@bullet value?
+    #
+    # Argh. I'm no handling the load_table_model routine elsewhere
+    #
+    bullet = para.get("bullet")
+    if bullet == "-":
+        return convert_list_items(para)
+
+    # Special case the load_table_model case
+    raise ValueError(f"What to do with bullet={bullet}\n{para}")
+
+
+def special_case_bullet_list(blist):
+    """Convert to multiple paras in an ADESC"""
+
+    # At the moment this is only built to support load_table_model (CIAO 4.19)
+    assert blist[0].tagname == 'bullet_list' and blist[0].get('bullet') == "*"
+
+    out = []
+    for litem in blist[0]:
+        assert litem.tagname == 'list_item'
+        assert litem[0].tagname == 'paragraph'
+        assert litem[1].tagname == 'block_quote'
+        assert litem[1][0].tagname == 'definition_list'
+        title = litem[0].astext()
+        start = ElementTree.Element('PARA', {'title': title})
+        out.append(start)
+
+        # See convert_definition_list_as_para/table
+        tbl = ElementTree.Element('TABLE')
+
+        # add a fake first row to set up the headers
+        #
+        row0 = ElementTree.SubElement(tbl, 'ROW')
+        ElementTree.SubElement(row0, 'DATA').text = 'Keyword'
+        ElementTree.SubElement(row0, 'DATA').text = 'Type'
+        ElementTree.SubElement(row0, 'DATA').text = 'Definition'
+
+        for el in litem[1][0]:
+
+            assert el.tagname == 'definition_list_item', el
+            assert el[0].tagname == 'term', el
+            assert el[0][0].tagname in ['literal', '#text'], el
+            assert el[1].tagname == 'classifier', el
+            assert el[1][0].tagname in ['literal', '#text'], el
+            assert el[2].tagname == 'definition', el
+            assert el[2][0].tagname == 'paragraph', el
+            assert len(el[2]) == 1, el
+
+            row = ElementTree.SubElement(tbl, 'ROW')
+            ElementTree.SubElement(row, 'DATA').text = el[0].astext()
+            ElementTree.SubElement(row, 'DATA').text = el[1].astext()
+
+            # It would be nice if we could error out if el[2]
+            # contained any markup (well. markup we can't easily
+            # convert).
+            #
+            ElementTree.SubElement(row, 'DATA').text = astext(el[2][0])
+
+        out.append(tbl)
+
+    return out
 
 
 def convert_definition_list_as_paras(para):
     """Create a definition list.
 
     This returns a set of paragraphs, with titles being the
-    list headers, and the contents being the paragrph contents.
+    list headers, and the contents being the paragraph contents.
 
     Parameters
     ----------
@@ -914,6 +1132,9 @@ def convert_note(note):
     #   refers to a change in XSPEC models 12.11.0 to 12.11.1
     #   and we have no CIAO version with 12.11.0
     #
+    # Hopefully we can remove this as the original text will be
+    # removed from Sherpa.
+    #
     if title == 'Parameter renames in XSPEC 12.11.1':
         return None
 
@@ -1027,7 +1248,6 @@ def convert_versionwarning(block):
     #  "This model requires XSPEC xxx or later."
     # paragraph.
     #
-    xspec_version = "This model requires XSPEC 12.14.0 or later."
     if len(toks) > 1:
         if not re.match(XSVERSION_WARNING, toks[1]):
             out.text = toks[1]
@@ -1060,6 +1280,8 @@ def convert_comment_versionwarning(block):
         The contents to add.
 
     """
+
+    assert False, block   # is this still used?
 
     # safety check to ensure we don't have these blocks in other
     # parts of the document.
@@ -1145,7 +1367,9 @@ para_converters = {'doctest_block': convert_doctest_block,
                    'versionchanged': convert_versionwarning,
                    'comment': convert_comment_versionwarning,
                    'field_body': convert_field_body,
-                   'literal_block': convert_literal_block}
+                   'literal_block': convert_literal_block,
+                   'math_block': convert_math_block
+                   }
 
 # return a list
 para_mconverters = ['definition_list']
@@ -1792,7 +2016,7 @@ def find_seealso(indoc):
     # I don't think there should be any see also symbol with a '.' in it
     # for any other reason than it is part of a module path.
     #
-    out = []
+    out = set()
     for n in names:
         if n.startswith('sherpa.'):
             n = n.split('.')[-1]
@@ -1800,14 +2024,13 @@ def find_seealso(indoc):
             sys.stderr.write(f"ERROR: invalid seealso {names}\n")
             sys.exit(1)
 
-        if n not in out:
-            out.append(n)
+        out.add(n)
 
     if len(names) != len(out):
         msg = f"- see also contains duplicates: {names}"
         dbg(msg)
 
-    return out, indoc[1:]
+    return sorted(out), indoc[1:]
 
 
 def find_notes(name, indoc):
@@ -1862,63 +2085,39 @@ def find_notes(name, indoc):
     # sentence from a block of text (ie if there is additional material),
     # since it looks like it doesn't happen (but it could).
     #
-    # Unfortunately I have not used exactly the same text for different
-    # versions: 12.14.0 uses
-    #
-    # This model requires XSPEC 12.14.0 or later.
-    #
     # See also ../helpers.py which also includes this logic.
     #
     def version(v):
         return 'This model is only available when used with ' + \
             f'XSPEC {v} or later.'
 
-    v1291 = version('12.9.1')
-    v12100 = version('12.10.0')
-    v12101 = version('12.10.1')
-    v12110 = version('12.11.0')  # there's no 12.11.1 only models
-    v12120 = version('12.12.0')
-
-    # I want to warn about 12.12.1 models, but it turns out in
-    # CIAO 4.15 we don't support the three new models, as they
-    # require XFLT changes we currently do not support.
-    # I leave this in as a reminder.
+    # As of CIO 4.19 these are the only version requirements
+    # we have (there's no 13.0.0 models).
     #
-    v12121 = version('12.12.1')
-
-    # These are new to CIAO 4.16 - cglumin is the only one
-    v12130 = version('12.13.0')
-
-    # These are new to CIAO 4.17.
     v12140 = "This model requires XSPEC 12.14.0 or later."
-
-    # These are new in 4.18 but we don't provide this version
-    # of XSPEC and so we drop them.
-    #
+    v12141 = "This model requires XSPEC 12.14.1 or later."
     v12150 = "This model requires XSPEC 12.15.0 or later."
+    v12151 = "This model requires XSPEC 12.15.1 or later."
 
     # First remove all the old "added in XSPEC x.y.z" lines
     #
     def wanted(n):
         txt = n.astext()
-        return txt not in [v1291, v12100, v12101, v12110, v12120,
-                           v12130, v12140]
+        return txt not in [v12140, v12141, v12150, v12151]
+
+    # Do we even see these models nowadays (i.e. shouldn't the
+    # unsuported models already be excluded; but this requires a
+    # Sherpa + XSPEC build).
+    #
+    def not_wanted(n):
+        txt = n.astext()
+        # return txt in [v12141, v12150, v12151]
+        return False
 
     lnodes = list(filter(wanted, lnodes))
     if len(lnodes) == 0:
         # print(" - NOTE section is about XSPEC version")
         return None, rnodes
-
-    # What happens if this is a 12.12.1 only model? It is not
-    # supported in CIAO 4.15 so we have to remove it. However
-    # we do not expect this. These models are also not supported
-    # in 4.16 (so when we do add support it's going to get
-    # complicated)
-    #
-    def not_wanted(n):
-        txt = n.astext()
-        # return txt == v12121
-        return txt in [v12121, v12150]
 
     unodes = list(filter(not_wanted, lnodes))
     if len(unodes) > 0:
@@ -1937,14 +2136,27 @@ def find_notes(name, indoc):
     # CIAO 4.16 uses 12.13.0  (as of May 2023)
     # CIAO 4.17 uses 12.14.0k, which has new models
     # CIAO 4.18 uses 12.14.0k, and has new models compared to 4.17
+    # CIAO 4.19 uses 12.15.1
     #
     any_notes = False
     out = ElementTree.Element("ADESC", {'title': 'Notes'})
 
+    # load_table_model in CIAO 4.19 has complicated this, so special case
+    #
+    if len(lnodes) == 1 and lnodes[0].tagname == 'bullet_list' and lnodes[0].get('bullet') == "*":
+        for para in special_case_bullet_list(lnodes):
+            out.append(para)
+
+        return out, rnodes
+
     # Do we want to process the contents or add them as a versionadded entry?
     #
     for para in lnodes:
-        if v12140 in para.astext():
+        # This is left in for when we have to identify a new model
+        txt = para.astext()
+        if v12140 in txt or v12141 in txt or v12150 in txt or v12151 in txt:
+
+            # This is not being hit: why?
 
             print(para.astext())
             raise NotImplementedError("this has got too complex")
@@ -1990,7 +2202,7 @@ def find_warning(indoc):
 
     assert len(node.children) == 1
 
-    # This probably needs to handle more-complocated structures,
+    # This probably needs to handle more-complicated structures,
     # but stay simple for now.
     #
     out = ElementTree.Element("ADESC", {'title': 'Warning'})
@@ -2094,15 +2306,36 @@ def find_references(indoc):
             assert footnote[1].tagname == "paragraph", str(footnote[1])
 
             # strip out the paragraph text from the reference URI
-            # Assume @refuri is the same as the text contents of reference
+            # We can no longer assume that @refuri is the same as the
+            # text contents of reference (CIAO 4.19 change).
             #
             if len(footnote[1]) == 2:
-                # Assume we have text and a reference URI
-                assert footnote[1][1].astext().startswith("http"), footnote[1][1]
 
-                add_href_para(out,
-                              f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
-                              footnote[1][1].astext())
+                # Is this now how it is done?
+                #
+                # <footnote ids="footnote-1" names="1">
+                #   <label>1</label>
+                #   <paragraph>
+                #     <reference name="K. A. Arnaud, I. M. George & A. F. Tennant, "The OGIP Spectral File Format"" refuri="https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html">K. A. Arnaud, I. M. George & A. F. Tennant, "The OGIP Spectral File Format"</reference>
+                #     <target ids="['k-a-arnaud-i-m-george-a-f-tennant-the-ogip-spectral-file-format']" names="['k. a. arnaud, i. m. george & a. f. tennant, "the ogip spectral file format"']" refuri="https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html"/>
+                #   </paragraph>
+                # </footnote>
+                #
+                # The old approach - leave in in case we still use this
+                # anywhere.
+                #
+                if footnote[1][1].astext().startswith("http"):
+                    # Assume we have text and a reference URI
+                    add_href_para(out,
+                                  f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
+                                  footnote[1][1].astext())
+                else:
+                    # what can we check
+                    assert len(footnote[1]) == 2, footnote[1]
+                    assert footnote[1][0].get("refuri") == footnote[1][1].get("refuri"), footnote[1]
+                    add_href_para(out,
+                                  f"[{footnote[0].astext()}] {footnote[1][0].astext()}",
+                                  footnote[1][0].get("refuri"))
 
             elif len(footnote[1]) == 1:
 
@@ -2572,6 +2805,7 @@ def strip_pat(pattern: str, inval: str) -> str:
     do not need to worry.
     """
 
+    # This could probably just use the string replace routine
     idx = inval.find(pattern)
     if idx == -1:
         return inval
@@ -2734,6 +2968,17 @@ def extract_params(fieldinfo,
             elif 'ivar' in par:
                 block = convert_field_body(par['ivar'])
                 text = block.text
+
+                # Special case some XSPEC parameters which include the
+                # text " (only usable with XSPEC 12.14.0 or later)"
+                # that we want to remove. Only do this if we think it
+                # might be relevant, to avoid possibly ruinig other
+                # cases.
+                #
+                if par['name'] == 'switch':
+                    text = " ".join(text.split("\n"))
+                    needle = " (only usable with XSPEC 12.14.0 or later)"
+                    text = text.replace(needle, "")
 
             else:
                 # Not description, so an empty paragraph.
@@ -3041,6 +3286,9 @@ def convert_docutils(name: str,
     # used to parse the versionadded/changed tags
     reset_stored_versions()
 
+    reset_ahelp_name()  # simpler to force this here
+    set_ahelp_name(name)
+
     # Basic idea is parse, augment/fill in, and then create the
     # ahelp structure, but it is likely this is going to get
     # confused.
@@ -3171,6 +3419,15 @@ def convert_docutils(name: str,
         store_versions['versionchanged'] = []
 
     for p in store_versions['versionchanged']:
+
+        # Special case a change introduced in 4.19
+        #
+        if get_ahelp_name() == 'get_xsxset':
+            token = 'keywords when XSPEC 12.15.1 is used.'
+            if p.text.find(token) > 0:
+                p.text = p.text.replace('keywords when XSPEC 12.15.1 is used.',
+                                        'keywords.')
+
         versioninfo.append(p)
         added += 1
 
@@ -3299,4 +3556,5 @@ def convert_docutils(name: str,
 
     ElementTree.SubElement(entry, 'LASTMODIFIED').text = LASTMOD
 
+    reset_ahelp_name()
     return outdoc

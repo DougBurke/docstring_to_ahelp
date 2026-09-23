@@ -23,7 +23,7 @@ from sherpa.astro.instrument import ARFModel, RMFModel, RSPModel, \
     PileupRMFModel, MultiResponseSumModel
 from sherpa.instrument import ConvolutionModel, PSFModel
 from sherpa.data import BaseData
-from sherpa.models.basic import TableModel, UserModel
+from sherpa.models.basic import TableModel, TableModelBase, UserModel
 from sherpa.models.template import TemplateModel, \
     InterpolatingTemplateModel
 
@@ -162,7 +162,9 @@ def doc_to_rst(doc):
 
 unwanted_classes = (ARFModel, RMFModel, RSPModel, PileupRMFModel,
                     ConvolutionModel, PSFModel,
-                    TableModel, UserModel,
+                    TableModel,
+                    TableModelBase, # Added in CIAO 3.19
+                    UserModel,
                     TemplateModel, InterpolatingTemplateModel,
                     MultiResponseSumModel)
 
@@ -218,14 +220,14 @@ def unwanted(name, sym):
     #
     if name.startswith("xs"):
         # The model-wrapper has a modeltype argument we can access to
-        # get the actual model class.
+        # get the actual model class, which lets us query the
+        # version_enabled flag,
         #
-        doc = sym.modeltype.__doc__
-        if "This model requires XSPEC 12.15.0 or later." in doc:
-            return True
-
-        if "This model requires XSPEC 12.14.1 or later." in doc:
-            return True
+        assert isinstance(sym, ModelWrapper), name
+        try:
+            return not sym.modeltype.version_enabled
+        except AttriuteError:
+            return False  # Assume we want to include this symbol
 
     return False
 
