@@ -52,8 +52,8 @@ from sherpa.utils.types import ArrayType, IdType, IdTypes, PrefsType
 # ArrayType = Sequence[float] | np.ndarray
 
 
-# CIAO 4.18
-LASTMOD = "December 2025"
+# CIAO 4.19
+LASTMOD = "December 2026"
 
 
 def save_doc(outfile, xmldoc):
